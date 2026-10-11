@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.11.0] - 2026-10-12
+
+A new app shell. The window is organised around three sections — Pairs, Activity and Insights — in a collapsible source-list rail, with the pair console as the detail view you enter by picking a pair. The pairs home becomes a real hub: stat cards, workspace-grouped pair cards, and a banner for pairs restored from a snapshot that need a human decision. A Cmd+K command palette reaches every action and jumps to any pair. Typography splits deliberately: the shell chrome reads in sans, the agent conversation stays a monospaced terminal stream.
+
+### Added
+
+- **Section shell with a source-list rail.** Pairs / Activity / Insights, with a running-pairs badge on Pairs and an attention badge on Activity; Cmd+B collapses the rail to icons and the native menu re-dispatches to the same actions.
+- **Pairs hub.** Stat cards (all / running / paused / finished), pair cards grouped by workspace and status with pause/resume/delete quick actions, and the full workspace path on wide windows.
+- **Recovery banner.** Pairs restored from a snapshot in Paused, Awaiting Human Review or Error are surfaced on the hub with a one-click jump and a dismiss.
+- **Activity and Insights sections.** Needs-attention plus recent activity across all pairs, and the cross-run model-combo leaderboard (still hidden until 5 recorded runs).
+- **Command palette (Cmd+K).** Grouped actions — navigation, pair lifecycle, session, view, window — plus fuzzy pair jump, also openable from the window chrome.
+- **Collapsible inspector sections and inline diffs.** The operations inspector groups models / run state / resources / files / history / timeline into sections, and file diffs render inline instead of in a modal.
+- **Keyboard navigation.** Cmd+1/2/3 jump between sections, Cmd+[ returns to the hub.
+
+### Changed
+
+- **Shell typography.** The shell (rail, hub, inspector, modals, palette) renders in sans at comfortable sizes; the pair stream, diffs and code stay mono. The split is pinned by `tests/shellTypography.test.ts`.
+- **Homepage layout.** The shell now fills the window width instead of content-sizing to a narrow column, stat labels center against their numbers instead of hanging below the baseline, and a status group with a single pair spans the full row rather than leaving an empty second column.
+
+### Removed
+
+- The floating quick-actions button, the old pair list section, the first-run empty-state guide, the file-diff modal and the dashboard insight panel — their jobs now belong to the hub, the palette and the inline diff.
+
 ## [2.10.2] - 2026-10-10
 
 Provider CLI audit against opencode 2.0.14, codex-cli 0.149.1 (changelog to 0.162.1), claude-code 2.1.295/2.1.296, agy 1.3.0–1.3.3, kimi-code 2.1.1, pi 0.87.0 (changelog to 1.1.0), kiro-cli 2.29.0, aider-chat 0.86.2, grok-build 1.0.44–1.0.46 and Muse Code 1.4.4. Eight integrations matched their CLIs exactly; two fixes below, both covered by regression tests.
