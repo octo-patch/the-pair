@@ -21,7 +21,7 @@ export function ResourceMeter({
   cells = DEFAULT_CELLS
 }: ResourceMeterProps): React.ReactNode {
   return (
-    <div className={cn('font-mono space-y-1', className)}>
+    <div className={cn('space-y-1 font-mono text-[11px]', className)}>
       <MeterRow
         label="cpu"
         value={cpu}

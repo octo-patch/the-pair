@@ -53,21 +53,17 @@ export function InsightsPanel({ className }: InsightsPanelProps): React.ReactNod
   return (
     <section
       data-testid="insights-panel"
-      className={cn(
-        'flex flex-col gap-2 border border-border bg-background/40 px-3 py-2 font-mono',
-        className
-      )}
+      className={cn('flex flex-col gap-2 px-1 py-1', className)}
     >
-      <h2 className="text-[10px] uppercase tracking-[0.18em] text-foreground/85">
-        <span className="text-primary">──</span> {t('dashboard.crossRun.title')}{' '}
-        <span className="text-primary">──</span>
+      <h2 className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+        {t('dashboard.crossRun.title')}
       </h2>
 
-      <div className="flex items-baseline gap-2 text-[11px]">
-        <span className="text-foreground/90 tabular-nums text-[15px] font-bold leading-none">
+      <div className="flex items-baseline gap-2">
+        <span className="text-foreground tabular-nums text-[22px] font-semibold leading-none">
           {Math.round(summary.successRate * 100)}%
         </span>
-        <span className="text-muted-foreground">
+        <span className="text-[13px] text-muted-foreground">
           {t('dashboard.crossRun.successRate', {
             successes: summary.successfulRuns,
             total: summary.totalRuns
@@ -76,18 +72,18 @@ export function InsightsPanel({ className }: InsightsPanelProps): React.ReactNod
       </div>
 
       {summary.combos.length > 0 && (
-        <table className="w-full text-[10px] leading-relaxed">
+        <table className="w-full text-[12px] leading-relaxed">
           <thead>
-            <tr className="text-left uppercase tracking-[0.12em] text-muted-foreground-faint">
-              <th className="py-1 pr-1 font-normal">{t('dashboard.crossRun.combo')}</th>
-              <th className="py-1 pr-1 text-right font-normal">{t('dashboard.crossRun.runs')}</th>
-              <th className="py-1 pr-1 text-right font-normal">
+            <tr className="text-left text-[11px] uppercase tracking-[0.1em] text-muted-foreground-faint">
+              <th className="py-1 pr-1 font-medium">{t('dashboard.crossRun.combo')}</th>
+              <th className="py-1 pr-1 text-right font-medium">{t('dashboard.crossRun.runs')}</th>
+              <th className="py-1 pr-1 text-right font-medium">
                 {t('dashboard.crossRun.success')}
               </th>
-              <th className="py-1 pr-1 text-right font-normal">
+              <th className="py-1 pr-1 text-right font-medium">
                 {t('dashboard.crossRun.avgIter')}
               </th>
-              <th className="py-1 text-right font-normal">{t('dashboard.crossRun.avgTokens')}</th>
+              <th className="py-1 text-right font-medium">{t('dashboard.crossRun.avgTokens')}</th>
             </tr>
           </thead>
           <tbody>
@@ -96,19 +92,19 @@ export function InsightsPanel({ className }: InsightsPanelProps): React.ReactNod
                 key={`${combo.mentorModel}|${combo.executorModel}`}
                 className="border-t border-border/60 text-foreground/85"
               >
-                <td className="max-w-0 truncate py-1 pr-1">
+                <td className="max-w-0 truncate py-1.5 pr-1 font-mono text-[12px]">
                   <span className="role-mentor">{combo.mentorModel}</span>
                   <span className="text-muted-foreground-faint"> + </span>
                   <span className="role-executor">{combo.executorModel}</span>
                 </td>
-                <td className="py-1 pr-1 text-right tabular-nums">{combo.runs}</td>
-                <td className="py-1 pr-1 text-right tabular-nums">
+                <td className="py-1.5 pr-1 text-right tabular-nums">{combo.runs}</td>
+                <td className="py-1.5 pr-1 text-right tabular-nums">
                   {Math.round(combo.successRate * 100)}%
                 </td>
-                <td className="py-1 pr-1 text-right tabular-nums">
+                <td className="py-1.5 pr-1 text-right tabular-nums">
                   {combo.avgIterations.toFixed(1)}
                 </td>
-                <td className="py-1 text-right tabular-nums">{formatTokens(combo.avgTokens)}</td>
+                <td className="py-1.5 text-right tabular-nums">{formatTokens(combo.avgTokens)}</td>
               </tr>
             ))}
           </tbody>

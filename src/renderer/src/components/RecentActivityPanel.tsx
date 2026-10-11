@@ -15,16 +15,7 @@ function Wrap({
   className?: string
   children: React.ReactNode
 }): React.ReactNode {
-  return (
-    <div
-      className={cn(
-        'flex flex-col border border-border bg-background/40 overflow-hidden p-3 font-mono',
-        className
-      )}
-    >
-      {children}
-    </div>
-  )
+  return <div className={cn('flex flex-col overflow-hidden px-1 py-1', className)}>{children}</div>
 }
 
 export function RecentActivityPanel({ className }: RecentActivityPanelProps): React.ReactNode {
@@ -75,11 +66,10 @@ export function RecentActivityPanel({ className }: RecentActivityPanelProps): Re
   if (loading) {
     return (
       <Wrap className={className}>
-        <h2 className="mb-2 text-[10px] uppercase tracking-[0.18em] text-foreground/85">
-          <span className="text-primary">──</span> {t('dashboard.activity.title')}{' '}
-          <span className="text-primary">──</span>
+        <h2 className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          {t('dashboard.activity.title')}
         </h2>
-        <div className="flex items-baseline gap-2 py-4 text-[11px] text-muted-foreground">
+        <div className="flex items-baseline gap-2 py-4 text-[13px] text-muted-foreground">
           <span className="state-running tty-blink">●</span>
           <span>· {t('common.loading')}</span>
         </div>
@@ -90,22 +80,18 @@ export function RecentActivityPanel({ className }: RecentActivityPanelProps): Re
   if (activities.length === 0) {
     return (
       <Wrap className={className}>
-        <h2 className="mb-2 text-[10px] uppercase tracking-[0.18em] text-foreground/85">
-          <span className="text-primary">──</span> {t('dashboard.activity.title')}{' '}
-          <span className="text-primary">──</span>
+        <h2 className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          {t('dashboard.activity.title')}
         </h2>
-        <p className="py-4 text-[11px] text-muted-foreground-faint">
-          — {t('dashboard.activity.empty')} —
-        </p>
+        <p className="py-4 text-[13px] text-muted-foreground">{t('dashboard.activity.empty')}</p>
       </Wrap>
     )
   }
 
   return (
     <Wrap className={className}>
-      <h2 className="mb-2 text-[10px] uppercase tracking-[0.18em] text-foreground/85">
-        <span className="text-primary">──</span> {t('dashboard.activity.title')}{' '}
-        <span className="text-primary">──</span>
+      <h2 className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+        {t('dashboard.activity.title')}
       </h2>
       <div className="flex-1 space-y-0 overflow-y-auto scrollbar-thin pr-1">
         {activities.map((activity) => (

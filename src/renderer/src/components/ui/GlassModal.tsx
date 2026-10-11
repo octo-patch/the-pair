@@ -18,9 +18,8 @@ interface GlassModalProps {
 }
 
 /**
- * Terminal-style modal: square corners, hairline border, no blur, no shadow.
- * Backdrop is opaque ink to keep the "terminal stays in focus" feel without
- * the gauzy frosted-glass aesthetic.
+ * Shell modal: card surface, medium radius, focus trap + Esc handling.
+ * The backdrop stays a flat dim so the conversation underneath stays readable.
  */
 export function GlassModal({
   isOpen,
@@ -117,26 +116,23 @@ export function GlassModal({
         aria-label={title}
         tabIndex={-1}
         className={cn(
-          'glass-modal relative w-full max-w-lg max-h-[90vh] flex flex-col font-mono outline-none',
+          'shell-card relative flex max-h-[90vh] w-full max-w-lg flex-col outline-none',
           className
         )}
       >
         {title && (
-          <div className="flex items-baseline justify-between gap-2 border-b border-border px-4 py-2.5 shrink-0">
-            <div className="flex items-baseline gap-2 min-w-0">
-              <span aria-hidden className="text-foreground/70 select-none">
-                {'>_'}
-              </span>
-              <h2 className="truncate text-[12px] font-bold uppercase tracking-[0.14em] text-foreground">
+          <div className="flex shrink-0 items-baseline justify-between gap-2 border-b border-border px-4 py-3">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <h2 className="truncate text-[14px] font-semibold tracking-tight text-foreground">
                 {title}
               </h2>
             </div>
             <button
               onClick={onClose}
               aria-label="close"
-              className="p-1 text-muted-foreground hover:text-foreground hover:bg-foreground/[0.06] transition-colors cursor-pointer rounded-sm"
+              className="cursor-pointer rounded-md p-1 text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
             >
-              <X size={13} />
+              <X size={14} />
             </button>
           </div>
         )}

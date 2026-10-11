@@ -66,7 +66,7 @@ export function StatusBadge({ status, stalled }: StatusBadgeProps): React.ReactN
   return (
     <span
       className={cn(
-        'inline-flex items-baseline gap-1 border rounded-sm px-1.5 py-px font-mono text-[10px] uppercase tracking-[0.14em]',
+        'inline-flex items-baseline gap-1 border rounded-full px-2 py-px text-[11px] font-medium',
         c.fg,
         c.bg,
         c.border

@@ -20,9 +20,13 @@
 
 **macOS** • **Windows** • **Linux** &nbsp;|&nbsp; [**⬇ ダウンロード**](https://github.com/timwuhaotian/the-pair/releases) &nbsp;•&nbsp; [**CLI**](https://github.com/timwuhaotian/pair-code) &nbsp;•&nbsp; [**🌐 ウェブサイト**](https://apps.timwuhaotian.dev/)
 
-![The Pair デスクトップアプリ — MentorとExecutorの2つのAIエージェントがコーディングタスクをリアルタイムで協働し、会話・ツール呼び出し・Gitの変更を表示](https://github.com/user-attachments/assets/b9d0f06c-c167-45f1-9154-0c49187296ab)
+![The Pair デスクトップアプリ — セッションコンソールで協働する Mentor と Executor、横にはモデル・実行状態・Git インスペクター](./docs/assets/pair-detail.png)
 
 _MentorとExecutorエージェントのリアルタイムコラボレーションを観察_
+
+[![The Pair 10秒ランチフィルム — 2つのエージェント、1つのレビュー](./docs/assets/launch-10s-poster.jpg)](docs/assets/launch-10s.mp4)
+
+▶️ **10秒ランチフィルムを見る** — 4K60 · 実際のアプリから構築 · 上の画像をクリックして再生
 
 </div>
 
@@ -64,6 +68,10 @@ _MentorとExecutorエージェントのリアルタイムコラボレーショ�
 - **セッション復元** — 中断されたセッションを完全な会話履歴付きで再開
 - **オンボーディングウィザード** — モデル設定とディレクトリ選択の初回ガイド
 - **ダーク/ライトテーマ** — 自動システムテーマ検出と手動切り替え
+- **コマンドパレット** — ⌘Kですべての操作をあいまい検索しペアへ直接ジャンプ
+- **ネイティブメニューバー** — アプリ / ファイル / 編集 / 表示 / ウインドウ / ヘルプのフルメニューとショートカット
+- **ペアハブ** — ステータス・クイックアクション・復元バナー付きワークスペース別ペアカード
+- **インスペクターパネル** — モデル・実行状態・リソース・ファイル・履歴・タイムラインの折りたたみセクション
 
 ### ユースケース
 
@@ -94,11 +102,17 @@ _MentorとExecutorエージェントのリアルタイムコラボレーショ�
 
 ## スクリーンショット
 
-レビュー結果 - 失敗（証拠付き）
-<img width="2800" height="2000" alt="失敗の証拠を示すレビュー結果" src="./docs/assets/intro-1.png" />
+ペアハブ
+<img width="2800" height="2000" alt="ワークスペース別ペアカードのハブ" src="./docs/assets/hub.png" />
 
-レビュー結果 - 合格（証拠付き）
-<img width="2800" height="2000" alt="合格の証拠を示すレビュー結果" src="./docs/assets/intro-3.png" />
+ペア詳細 — レビュー
+<img width="2800" height="2000" alt="セッションコンソールとインスペクター付きペア詳細" src="./docs/assets/pair-detail.png" />
+
+コマンドパレット
+<img width="2800" height="2000" alt="あいまい検索とペアジャンプ付きコマンドパレット" src="./docs/assets/palette.png" />
+
+ライブ実行
+<img width="2800" height="2000" alt="停止コントロールとキュー入力付きライブ実行ターン" src="./docs/assets/pair-running.png" />
 
 ---
 

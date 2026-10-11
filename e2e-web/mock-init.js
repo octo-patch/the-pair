@@ -99,7 +99,7 @@
       case 'get_recommendation':
         return []
       case 'get_insights_summary':
-        return { runs: 0, interventions: 0, combos: [] }
+        return { totalRuns: 0, successfulRuns: 0, successRate: 0, combos: [] }
       case 'skill_discover':
       case 'discover_skills':
         return []

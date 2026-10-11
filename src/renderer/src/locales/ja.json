@@ -39,7 +39,8 @@
     "running": "実行中",
     "stop": "停止",
     "resume": "再開",
-    "pause": "一時停止"
+    "pause": "一時停止",
+    "dismiss": "閉じる"
   },
   "chrome": {
     "title": "The Pair",
@@ -389,7 +390,9 @@
     "toolCall": "ツール呼び出し",
     "lines": "行",
     "output": "出力",
-    "lastActivityAgo": "最後のアクティビティ {{time}} 前"
+    "lastActivityAgo": "最後のアクティビティ {{time}} 前",
+    "subtitle": "全ペアのライブ状態と最近のイベント。",
+    "attentionHint": "{{count}} 件のペアが人の判断を待っています — 上から選択して開きます。"
   },
   "errors": {
     "executionError": "実行エラー",
@@ -428,8 +431,6 @@
     "title": "タスク履歴",
     "empty": "まだ以前のタスクはありません。",
     "backToCurrent": "現在に戻る",
-    "copyMD": "MDをコピー",
-    "exportHTML": "HTMLをエクスポート",
     "restoreTask": "このタスクを復元",
     "restoreDisabledBusy": "タスクを復元する前にペアを一時停止または停止してください"
   },
@@ -439,7 +440,13 @@
     "newPair": "新しいペア",
     "pausePair": "ペアを一時停止",
     "resumePair": "ペアを再開",
-    "showShortcuts": "ショートカットを表示"
+    "showShortcuts": "ショートカットを表示",
+    "toggleSidebar": "サイドバーの表示切替",
+    "commandPalette": "コマンドパレット",
+    "goBack": "ペアに戻る",
+    "goPairs": "ペアへ移動",
+    "goActivity": "アクティビティへ移動",
+    "goInsights": "インサイトへ移動"
   },
   "status": {
     "Idle": "アイドル",
@@ -466,5 +473,47 @@
   },
   "quickActions": {
     "create": "新しいペア"
+  },
+  "shell": {
+    "navLabel": "プライマリ",
+    "pairs": "ペア",
+    "activity": "アクティビティ",
+    "insights": "インサイト"
+  },
+  "hub": {
+    "title": "ペア",
+    "subtitle": "ペアを選んでコンソールを開くか、新規作成します。"
+  },
+  "insights": {
+    "subtitle": "全ペアのラン横断モデル性能。"
+  },
+  "recovery": {
+    "title": "復元されたセッション",
+    "description": "復元された {{count}} 件のペアが人の判断を待っています — 選んで続行します。"
+  },
+  "palette": {
+    "title": "コマンドパレット",
+    "placeholder": "コマンドを入力またはペアを検索...",
+    "noResults": "一致するコマンドがありません",
+    "groups": {
+      "pair": "ペア",
+      "go": "移動",
+      "view": "表示",
+      "app": "アプリ"
+    },
+    "newPair": "新規ペア...",
+    "newTask": "新規タスク...",
+    "pausePair": "ペアを一時停止",
+    "resumePair": "ペアを再開",
+    "pairSettings": "ペア設定...",
+    "clearSession": "セッションをクリア...",
+    "goPairs": "ペアハブ",
+    "goActivity": "アクティビティ",
+    "goInsights": "インサイト",
+    "openPair": "ペアを開く",
+    "toggleSidebar": "サイドバーの表示切替",
+    "toggleTheme": "テーマ切替",
+    "keyboardShortcuts": "キーボードショートカット...",
+    "checkUpdates": "アップデートを確認"
   }
 }

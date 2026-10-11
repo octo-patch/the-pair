@@ -20,9 +20,13 @@
 
 **macOS** • **Windows** • **Linux** &nbsp;|&nbsp; [**⬇ 다운로드**](https://github.com/timwuhaotian/the-pair/releases) &nbsp;•&nbsp; [**CLI**](https://github.com/timwuhaotian/pair-code) &nbsp;•&nbsp; [**🌐 웹사이트**](https://apps.timwuhaotian.dev/)
 
-![The Pair 데스크톱 앱 — Mentor와 Executor 두 AI 에이전트가 코딩 작업을 실시간으로 협업하며 대화, 도구 호출, Git 변경 사항을 표시](https://github.com/user-attachments/assets/b9d0f06c-c167-45f1-9154-0c49187296ab)
+![The Pair 데스크톱 앱 — 세션 콘솔에서 협업하는 Mentor와 Executor, 옆에는 모델·실행 상태·Git 인스펙터](./docs/assets/pair-detail.png)
 
 _Mentor와 Executor 에이전트의 실시간 협업 과정을 지켜보세요_
+
+[![The Pair 10초 런치 필름 — 두 에이전트, 한 번의 리뷰](./docs/assets/launch-10s-poster.jpg)](docs/assets/launch-10s.mp4)
+
+▶️ **10초 런치 필름 보기** — 4K60 · 실제 앱으로 제작 · 위 이미지를 클릭해 재생
 
 </div>
 
@@ -64,6 +68,10 @@ _Mentor와 Executor 에이전트의 실시간 협업 과정을 지켜보세요_
 - **세션 복구** — 중단된 세션을 전체 대화 기록과 함께 복원
 - **온보딩 마법사** — 모델 구성 및 디렉토리 선택을 위한 첫 실행 가이드
 - **다크/라이트 테마** — 자동 시스템 테마 감지 및 수동 전환 지원
+- **명령 팔레트** — ⌘K로 모든 동작을 퍼지 검색하고 페어로 바로 이동
+- **네이티브 메뉴 바** — 앱 / 파일 / 편집 / 보기 / 창 / 도움말 전체 메뉴와 단축키
+- **페어 허브** — 상태·빠른 동작·복구 배너가 있는 워크스페이스별 페어 카드
+- **인스펙터 패널** — 모델·실행 상태·리소스·파일·기록·타임라인 접이식 섹션
 
 ### 사용 사례
 
@@ -94,11 +102,17 @@ _Mentor와 Executor 에이전트의 실시간 협업 과정을 지켜보세요_
 
 ## 스크린샷
 
-검토 결과 - 실패 (증거 포함)
-<img width="2800" height="2000" alt="실패 증거를 보여주는 검토 결과" src="./docs/assets/intro-1.png" />
+페어 허브
+<img width="2800" height="2000" alt="워크스페이스별 페어 카드 허브" src="./docs/assets/hub.png" />
 
-검토 결과 - 통과 (증거 포함)
-<img width="2800" height="2000" alt="통과 증거를 보여주는 검토 결과" src="./docs/assets/intro-3.png" />
+페어 상세 — 리뷰
+<img width="2800" height="2000" alt="세션 콘솔과 인스펙터가 있는 페어 상세" src="./docs/assets/pair-detail.png" />
+
+명령 팔레트
+<img width="2800" height="2000" alt="퍼지 검색과 페어 점프가 있는 명령 팔레트" src="./docs/assets/palette.png" />
+
+실시간 실행
+<img width="2800" height="2000" alt="중지 컨트롤과 대기 입력이 있는 실시간 실행 턴" src="./docs/assets/pair-running.png" />
 
 ---
 

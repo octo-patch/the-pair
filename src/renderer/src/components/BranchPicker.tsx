@@ -119,12 +119,7 @@ export function BranchPicker({
 
   if (isLoading) {
     return (
-      <div
-        className={cn(
-          'flex items-baseline gap-2 font-mono text-[11px] text-muted-foreground',
-          className
-        )}
-      >
+      <div className={cn('flex items-baseline gap-2 text-[12px] text-muted-foreground', className)}>
         <RefreshCw className="h-3 w-3 animate-spin translate-y-px" />
         <span>· checking repo…</span>
       </div>
@@ -133,12 +128,7 @@ export function BranchPicker({
 
   if (loadError) {
     return (
-      <div
-        className={cn(
-          'flex flex-col gap-0.5 font-mono text-[11px] text-muted-foreground',
-          className
-        )}
-      >
+      <div className={cn('flex flex-col gap-0.5 text-[12px] text-muted-foreground', className)}>
         <div className="flex items-baseline gap-2">
           <GitBranch className="h-3 w-3 translate-y-px" />
           <span>! repo state unreadable</span>
@@ -154,12 +144,7 @@ export function BranchPicker({
 
   if (!repoState?.isGitRepo) {
     return (
-      <div
-        className={cn(
-          'flex items-baseline gap-2 font-mono text-[11px] text-muted-foreground',
-          className
-        )}
-      >
+      <div className={cn('flex items-baseline gap-2 text-[12px] text-muted-foreground', className)}>
         <GitBranch className="h-3 w-3 translate-y-px" />
         <span>· not a git repo — worktrees unavailable</span>
       </div>
@@ -195,7 +180,7 @@ export function BranchPicker({
   return (
     <div
       ref={containerRef}
-      className={cn('relative font-mono', className)}
+      className={cn('relative', className)}
       onKeyDown={handleContainerKeyDown}
     >
       <button

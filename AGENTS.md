@@ -24,6 +24,8 @@ This file contains instructions and context for any AI agents (like yourself) wo
    - Frontend calls backend via `invoke()` from `@tauri-apps/api/core`.
 2. **Styling:**
    - Always use Tailwind CSS classes. Custom dark/light mode palette is defined in `src/renderer/src/assets/main.css`.
+   - Shell chrome (sidebar, hub, inspector, modals, palette) uses sans (`font-sans`, Geist Sans/SF); the conversation core (pair stream, diffs, code) uses mono (`font-mono`, Geist Mono). Never re-mono shell labels or re-sans the stream — `tests/shellTypography.test.ts` pins the split.
+   - Shell surfaces use `.shell-card` (+ `.shell-card-hover`); the sidebar rail uses `.app-source-list`. The stream stays flat with hairline borders.
    - Use the `cn()` utility from `src/renderer/src/lib/utils.ts` for conditional class merging.
 3. **Agent Interactions:**
    - The application spawns processes. Always implement an iteration limit (`maxIterations`) before pausing for human intervention.
@@ -58,8 +60,11 @@ This file contains instructions and context for any AI agents (like yourself) wo
 
 | Component                                       | Purpose                                                                                            |
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `App.tsx`                                       | Root: routing between dashboard and pair detail views                                              |
+| `App.tsx`                                       | Root: app shell routing (hub sections vs pair detail), modals, shortcuts, updater                  |
 | `AppChrome.tsx`                                 | Window chrome, title bar, theme toggle                                                             |
+| `AppShell.tsx`                                  | Left section rail (Pairs / Activity / Insights) with running + attention badges                    |
+| `PairsHub.tsx`                                  | Pairs home: stat cards + workspace-grouped pair cards with quick actions                           |
+| `ShellViews.tsx`                                | `ActivityView` (needs-attention + recent activity) and `InsightsView` (cross-run leaderboard)      |
 | `OnboardingWizard.tsx`                          | First-run guided setup (model config, directory selection)                                         |
 | `CreatePairModal.tsx`                           | New pair creation form                                                                             |
 | `PairSettingsModal.tsx`                         | Edit existing pair settings                                                                        |
@@ -71,9 +76,14 @@ This file contains instructions and context for any AI agents (like yourself) wo
 | `MessageFilterBar.tsx`                          | Filter console messages by role (All/Mentor/Executor)                                              |
 | `ScrollToBottomButton.tsx`                      | Auto-appears when new messages arrive                                                              |
 | `IterationProgress.tsx`                         | Visual indicator with warning when approaching iteration limit                                     |
+| `Dashboard.tsx`                                 | Pair detail view: conversation console + operations inspector (no list state)                      |
+| `PairOperationsPanel.tsx`                       | Inspector: collapsible sections (models, run state, resources, files, history, timeline)           |
+| `inspector/InspectorSection.tsx`                | Collapsible section primitive with header badge + actions slots                                    |
+| `inspector/InlineDiff.tsx`                      | Inline file-diff body (shared diff rendering, no modal)                                            |
+| `RecoveryBanner.tsx`                            | Hub banner listing restored pairs needing a human decision                                         |
+| `CommandPalette.tsx`                            | Global fuzzy command palette (Cmd+K) with grouped actions + pair jump                              |
 | `ErrorDetailPanel.tsx`                          | Actionable error display with retry/discard options                                                |
-| `DashboardEmptyState.tsx`                       | Empty state with onboarding explanation                                                            |
-| `InsightsPanel.tsx`                             | Cross-run combo leaderboard on the dashboard (hidden until ≥5 recorded runs)                       |
+| `InsightsPanel.tsx`                             | Cross-run combo leaderboard on the insights section (hidden until ≥5 recorded runs)                |
 | `FileMention.tsx`                               | Renders `@file` mentions in messages                                                               |
 | `StatusBadge.tsx`                               | Pair status pill (Idle/Mentoring/Executing/Reviewing/Paused/Error/Finished)                        |
 | `UpdateNotification.tsx` / `UpdateControls.tsx` | In-app updater UI                                                                                  |
@@ -90,6 +100,7 @@ This file contains instructions and context for any AI agents (like yourself) wo
 | `workspace.ts`          | Workspace directory helpers                                    |
 | `animations.ts`         | Shared Framer Motion variants                                  |
 | `tauri-api.ts`          | Typed wrappers around `invoke()` calls                         |
+| `paletteActions.ts`     | Command-palette action registry shared by palette + menus      |
 
 ## Pair Status State Machine
 

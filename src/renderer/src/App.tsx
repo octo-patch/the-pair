@@ -7,6 +7,9 @@ import { useThemeStore } from './store/useThemeStore'
 import { useUpdateStore } from './store/useUpdateStore'
 import './i18n'
 import { AppChrome } from './components/AppChrome'
+import { AppShell, type ShellSection } from './components/AppShell'
+import { PairsHub } from './components/PairsHub'
+import { ActivityView, InsightsView } from './components/ShellViews'
 import { BootSplash } from './components/BootSplash'
 import { ConfirmModal } from './components/ui/ConfirmModal'
 import { UpdateNotification } from './components/UpdateNotification'
@@ -20,6 +23,17 @@ import { preloadSounds } from './lib/sound'
 import { useShortcuts } from './hooks/useShortcuts'
 import { ShortcutsModal } from './components/ShortcutsModal'
 import type { ShortcutDef } from './lib/shortcuts'
+import {
+  buildPaletteActions,
+  buildPairJumpActions,
+  type PaletteContext
+} from './lib/paletteActions'
+
+const CommandPalette = lazy(() =>
+  import('./components/CommandPalette').then(({ CommandPalette }) => ({
+    default: CommandPalette
+  }))
+)
 
 const CreatePairModal = lazy(() =>
   import('./components/CreatePairModal').then(({ CreatePairModal }) => ({
@@ -85,10 +99,26 @@ function queueStartupUpdateCheck(callback: () => void): () => void {
 function App(): React.ReactNode {
   const { t } = useTranslation()
   const [selectedPairId, setSelectedPairId] = useState<string | null>(null)
+  const [shellSection, setShellSection] = useState<ShellSection>('pairs')
+  const [shellCollapsed, setShellCollapsed] = useState(false)
   const [isCreatePairOpen, setIsCreatePairOpen] = useState(false)
   const [isAssignTaskOpen, setIsAssignTaskOpen] = useState(false)
   const [isPairSettingsOpen, setIsPairSettingsOpen] = useState(false)
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false)
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false)
+  const [hasPaletteLoaded, setHasPaletteLoaded] = useState(false)
+  // Incremented on every open so the palette remounts fresh (empty query,
+  // selection at top) without reset effects inside the component.
+  const [paletteEpoch, setPaletteEpoch] = useState(0)
+  const openPalette = useCallback((): void => {
+    setPaletteEpoch((epoch) => epoch + 1)
+    setIsPaletteOpen(true)
+  }, [])
+
+  // The Cmd+K shortcut memo below reads open state without re-subscribing the
+  // global key handler on every palette open/close.
+  const isPaletteOpenRef = useRef(isPaletteOpen)
+  isPaletteOpenRef.current = isPaletteOpen
   const [hasCreatePairModalLoaded, setHasCreatePairModalLoaded] = useState(false)
   const [hasAssignTaskModalLoaded, setHasAssignTaskModalLoaded] = useState(false)
   const [hasPairSettingsModalLoaded, setHasPairSettingsModalLoaded] = useState(false)
@@ -239,6 +269,10 @@ function App(): React.ReactNode {
   }, [isPairSettingsOpen])
 
   useEffect(() => {
+    if (isPaletteOpen) setHasPaletteLoaded(true)
+  }, [isPaletteOpen])
+
+  useEffect(() => {
     // Snapshot save is async + fire-and-forget; on a true app close we have no
     // way to await it. Listen on multiple lifecycle events so we get a save in
     // before the window dies even if the user closes via OS rather than menu:
@@ -269,6 +303,7 @@ function App(): React.ReactNode {
   const shouldRenderCreatePairModal = hasCreatePairModalLoaded || isCreatePairOpen
   const shouldRenderAssignTaskModal = hasAssignTaskModalLoaded || isAssignTaskOpen
   const shouldRenderPairSettingsModal = hasPairSettingsModalLoaded || isPairSettingsOpen
+  const shouldRenderPalette = hasPaletteLoaded || isPaletteOpen
 
   // 如果选中了一个不存在的 pair，重置选择
   useEffect(() => {
@@ -305,6 +340,47 @@ function App(): React.ReactNode {
     setRestoringSpec(null)
     setIsAssignTaskOpen(true)
   }, [selectedPair, setRestoringSpec])
+
+  // viewingRunId is global in the store while run ids are per pair — leave any
+  // archived-run view when switching pairs or going back to the hub.
+  const selectPair = useCallback(
+    (pairId: string | null): void => {
+      if (pairId !== selectedPairId) setViewingRunId(null)
+      setSelectedPairId(pairId)
+    },
+    [selectedPairId, setViewingRunId]
+  )
+
+  const goHub = useCallback((): void => {
+    selectPair(null)
+  }, [selectPair])
+
+  const selectSection = useCallback(
+    (next: ShellSection): void => {
+      setShellSection(next)
+      // Switching sections always lands on the hub; the detail view is
+      // entered by picking a pair card.
+      if (selectedPairId !== null) setViewingRunId(null)
+      setSelectedPairId(null)
+    },
+    [selectedPairId, setViewingRunId]
+  )
+
+  const toggleSidebar = useCallback((): void => {
+    setShellCollapsed((collapsed) => !collapsed)
+  }, [])
+
+  const openShortcuts = useCallback((): void => {
+    setIsShortcutsOpen(true)
+  }, [])
+
+  const openPairSettings = useCallback((): void => {
+    setIsPairSettingsOpen(true)
+  }, [])
+
+  const checkForUpdates = useCallback((): void => {
+    void import('@tauri-apps/api/event').then(({ emit }) => emit('app:update:check'))
+  }, [])
 
   const shortcuts: ShortcutDef[] = useMemo(
     () => [
@@ -345,12 +421,176 @@ function App(): React.ReactNode {
           setIsShortcutsOpen((open) => !open)
         },
         description: t('shortcuts.showShortcuts')
+      },
+      {
+        key: 'b',
+        modifiers: [cmdKey, 'ctrl'],
+        handler: () => {
+          toggleSidebar()
+        },
+        description: t('shortcuts.toggleSidebar')
+      },
+      {
+        key: 'k',
+        modifiers: [cmdKey],
+        handler: () => {
+          if (isPaletteOpenRef.current) setIsPaletteOpen(false)
+          else openPalette()
+        },
+        description: t('shortcuts.commandPalette')
+      },
+      {
+        key: '[',
+        modifiers: [cmdKey],
+        handler: () => {
+          goHub()
+        },
+        description: t('shortcuts.goBack'),
+        condition: () => selectedPair !== null
+      },
+      {
+        key: '1',
+        modifiers: [cmdKey],
+        handler: () => {
+          selectSection('pairs')
+        },
+        description: t('shortcuts.goPairs')
+      },
+      {
+        key: '2',
+        modifiers: [cmdKey],
+        handler: () => {
+          selectSection('activity')
+        },
+        description: t('shortcuts.goActivity')
+      },
+      {
+        key: '3',
+        modifiers: [cmdKey],
+        handler: () => {
+          selectSection('insights')
+        },
+        description: t('shortcuts.goInsights')
       }
     ],
-    [selectedPair, t, handleNewTask, handlePauseSelectedPair, handleResumeSelectedPair]
+    [
+      selectedPair,
+      t,
+      handleNewTask,
+      handlePauseSelectedPair,
+      handleResumeSelectedPair,
+      toggleSidebar,
+      selectSection,
+      goHub,
+      openPalette
+    ]
   )
 
   useShortcuts(shortcuts)
+
+  // (selectPair / goHub are declared above with the other navigation callbacks.)
+
+  // Native menu bar events (emitted from the Rust menu in lib.rs). The palette
+  // actions below are the single source of truth — menus just re-dispatch here.
+  useEffect(() => {
+    const unlisteners: Array<() => void> = []
+    let active = true
+    const subs: Array<[string, () => void]> = [
+      ['app:menu:new-pair', () => setIsCreatePairOpen(true)],
+      [
+        'app:menu:new-task',
+        () => {
+          if (selectedPair) handleNewTask()
+          else setIsCreatePairOpen(true)
+        }
+      ],
+      ['app:menu:pause', () => void handlePauseSelectedPair()],
+      ['app:menu:resume', () => void handleResumeSelectedPair()],
+      ['app:menu:back', () => goHub()],
+      ['app:menu:go-pairs', () => selectSection('pairs')],
+      ['app:menu:go-activity', () => selectSection('activity')],
+      ['app:menu:go-insights', () => selectSection('insights')],
+      ['app:menu:toggle-sidebar', () => toggleSidebar()],
+      ['app:menu:toggle-theme', () => toggleTheme()],
+      ['app:menu:shortcuts', () => openShortcuts()],
+      ['app:menu:palette', () => openPalette()]
+    ]
+    for (const [event, handler] of subs) {
+      void listen(event, handler).then((cleanup) => {
+        if (active) unlisteners.push(cleanup)
+        else cleanup()
+      })
+    }
+    return () => {
+      active = false
+      for (const cleanup of unlisteners) cleanup()
+    }
+  }, [
+    selectedPair,
+    handleNewTask,
+    handlePauseSelectedPair,
+    handleResumeSelectedPair,
+    toggleSidebar,
+    toggleTheme,
+    openShortcuts,
+    openPalette,
+    selectSection,
+    selectPair,
+    goHub
+  ])
+
+  const handleRequestClearSession = useCallback((): void => {
+    if (!selectedPair) return
+    setPendingClearPair(selectedPair)
+  }, [selectedPair])
+
+  const paletteContext: PaletteContext = useMemo(
+    () => ({
+      pairs,
+      selectedPair,
+      openCreatePair: () => setIsCreatePairOpen(true),
+      openNewTask: handleNewTask,
+      openPairSettings,
+      pauseSelectedPair: () => void handlePauseSelectedPair(),
+      resumeSelectedPair: () => void handleResumeSelectedPair(),
+      clearSelectedSession: handleRequestClearSession,
+      selectPair,
+      selectSection,
+      toggleSidebar,
+      toggleTheme,
+      openShortcuts,
+      checkForUpdates
+    }),
+    [
+      pairs,
+      selectedPair,
+      handleNewTask,
+      openPairSettings,
+      handlePauseSelectedPair,
+      handleResumeSelectedPair,
+      handleRequestClearSession,
+      selectPair,
+      selectSection,
+      toggleSidebar,
+      toggleTheme,
+      openShortcuts,
+      checkForUpdates
+    ]
+  )
+
+  const paletteActions = useMemo(
+    () => [...buildPaletteActions(paletteContext), ...buildPairJumpActions(pairs, selectPair)],
+    [paletteContext, pairs, selectPair]
+  )
+
+  const palettePairName = useCallback(
+    (actionId: string): string | null => {
+      if (!actionId.startsWith('go.pair.')) return null
+      const pair = pairs.find((p) => `go.pair.${p.id}` === actionId)
+      return pair?.name ?? null
+    },
+    [pairs]
+  )
 
   const handleRestoreTask = (spec: string, mentorModel: string, executorModel: string): void => {
     // Same guard as "New Task": starting a run while the pair is busy would
@@ -358,13 +598,6 @@ function App(): React.ReactNode {
     if (!selectedPair || isPairBusy(selectedPair.status)) return
     setRestoringSpec({ spec, mentorModel, executorModel })
     setIsAssignTaskOpen(true)
-  }
-
-  // viewingRunId is global in the store while run ids are per pair — leave any
-  // archived-run view when switching pairs or going back to the dashboard.
-  const selectPair = (pairId: string | null): void => {
-    if (pairId !== selectedPairId) setViewingRunId(null)
-    setSelectedPairId(pairId)
   }
 
   const handleDeletePair = (pair: Pair): void => {
@@ -400,11 +633,6 @@ function App(): React.ReactNode {
     setPendingDeletePair(null)
   }
 
-  const handleRequestClearSession = (): void => {
-    if (!selectedPair) return
-    setPendingClearPair(selectedPair)
-  }
-
   const confirmClearSession = (): void => {
     if (!pendingClearPair) return
     setMessages(pendingClearPair.id, [])
@@ -426,44 +654,60 @@ function App(): React.ReactNode {
           theme={theme}
           onToggleTheme={toggleTheme}
           onNewTask={handleNewTask}
-          onBack={selectedPair ? () => selectPair(null) : undefined}
+          onBack={selectedPair ? goHub : undefined}
           onClearSession={selectedPair ? handleRequestClearSession : undefined}
-          onOpenSettings={selectedPair ? () => setIsPairSettingsOpen(true) : undefined}
-          onShowShortcuts={() => setIsShortcutsOpen(true)}
+          onOpenSettings={selectedPair ? openPairSettings : undefined}
+          onShowShortcuts={openShortcuts}
+          onOpenPalette={openPalette}
         />
 
-        <div className="flex-1 overflow-hidden">
-          <ErrorBoundary>
-            <Dashboard
-              selectedPair={selectedPair}
-              selectedPairId={selectedPairId}
-              onSelectPair={(pair) => {
-                selectPair(pair.id)
-              }}
-              onDeletePair={(pair) => {
-                void handleDeletePair(pair)
-              }}
-              deletingPairId={deletingPairId}
-              onCreatePair={() => setIsCreatePairOpen(true)}
-              onPausePair={async (id: string) => {
-                try {
-                  await pausePair(id)
-                } catch (e) {
-                  console.error('[App] Failed to pause:', e)
-                }
-              }}
-              onResumePair={async (id: string) => {
-                try {
-                  await resumePair(id)
-                } catch (e) {
-                  console.error('[App] Failed to resume:', e)
-                }
-              }}
-              onPauseSelectedPair={handlePauseSelectedPair}
-              onResumeSelectedPair={handleResumeSelectedPair}
-              onRestoreTask={handleRestoreTask}
-            />
-          </ErrorBoundary>
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <AppShell
+            section={shellSection}
+            onSelectSection={selectSection}
+            collapsed={shellCollapsed}
+          >
+            <ErrorBoundary>
+              {selectedPair ? (
+                <Dashboard
+                  selectedPair={selectedPair}
+                  onPauseSelectedPair={handlePauseSelectedPair}
+                  onResumeSelectedPair={handleResumeSelectedPair}
+                  onRestoreTask={handleRestoreTask}
+                />
+              ) : shellSection === 'activity' ? (
+                <ActivityView pairs={pairs} onSelectPair={(pair) => selectPair(pair.id)} />
+              ) : shellSection === 'insights' ? (
+                <InsightsView />
+              ) : (
+                <PairsHub
+                  pairs={pairs}
+                  onSelectPair={(pair) => {
+                    selectPair(pair.id)
+                  }}
+                  onDeletePair={(pair) => {
+                    void handleDeletePair(pair)
+                  }}
+                  deletingPairId={deletingPairId}
+                  onCreatePair={() => setIsCreatePairOpen(true)}
+                  onPausePair={async (id: string) => {
+                    try {
+                      await pausePair(id)
+                    } catch (e) {
+                      console.error('[App] Failed to pause:', e)
+                    }
+                  }}
+                  onResumePair={async (id: string) => {
+                    try {
+                      await resumePair(id)
+                    } catch (e) {
+                      console.error('[App] Failed to resume:', e)
+                    }
+                  }}
+                />
+              )}
+            </ErrorBoundary>
+          </AppShell>
         </div>
       </div>
 
@@ -526,6 +770,18 @@ function App(): React.ReactNode {
         onClose={() => setIsShortcutsOpen(false)}
         shortcuts={shortcuts}
       />
+
+      <Suspense fallback={null}>
+        {shouldRenderPalette && (
+          <CommandPalette
+            key={`palette-${paletteEpoch}`}
+            isOpen={isPaletteOpen}
+            onClose={() => setIsPaletteOpen(false)}
+            actions={paletteActions}
+            pairNameById={palettePairName}
+          />
+        )}
+      </Suspense>
 
       <UpdateNotification />
     </div>

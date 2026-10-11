@@ -39,7 +39,8 @@
     "running": "실행 중",
     "stop": "중지",
     "resume": "재개",
-    "pause": "일시정지"
+    "pause": "일시정지",
+    "dismiss": "닫기"
   },
   "chrome": {
     "title": "The Pair",
@@ -389,7 +390,9 @@
     "toolCall": "도구 호출",
     "lines": "줄",
     "output": "출력",
-    "lastActivityAgo": "마지막 활동 {{time}} 전"
+    "lastActivityAgo": "마지막 활동 {{time}} 전",
+    "subtitle": "모든 페어의 실시간 상태와 최근 이벤트.",
+    "attentionHint": "{{count}}개의 페어가 사람의 판단이 필요합니다 — 위에서 선택하세요."
   },
   "errors": {
     "executionError": "실행 오류",
@@ -428,8 +431,6 @@
     "title": "작업 기록",
     "empty": "아직 이전 작업이 없습니다.",
     "backToCurrent": "현재로 돌아가기",
-    "copyMD": "MD 복사",
-    "exportHTML": "HTML 내보내기",
     "restoreTask": "이 작업 복원",
     "restoreDisabledBusy": "작업을 복원하기 전에 페어를 일시정지하거나 중지하세요"
   },
@@ -439,7 +440,13 @@
     "newPair": "새 페어",
     "pausePair": "페어 일시 중지",
     "resumePair": "페어 재개",
-    "showShortcuts": "단축키 표시"
+    "showShortcuts": "단축키 표시",
+    "toggleSidebar": "사이드바 토글",
+    "commandPalette": "명령 팔레트",
+    "goBack": "페어로 돌아가기",
+    "goPairs": "페어로 이동",
+    "goActivity": "활동으로 이동",
+    "goInsights": "인사이트로 이동"
   },
   "status": {
     "Idle": "대기 중",
@@ -466,5 +473,47 @@
   },
   "quickActions": {
     "create": "새 페어"
+  },
+  "shell": {
+    "navLabel": "기본 탐색",
+    "pairs": "페어",
+    "activity": "활동",
+    "insights": "인사이트"
+  },
+  "hub": {
+    "title": "페어",
+    "subtitle": "페어를 선택해 콘솔을 열거나 새로 만드세요."
+  },
+  "insights": {
+    "subtitle": "모든 페어의 실행 간 모델 성능."
+  },
+  "recovery": {
+    "title": "복원된 세션",
+    "description": "복원된 페어 {{count}}개가 사람의 판단이 필요합니다 — 선택해 계속하세요."
+  },
+  "palette": {
+    "title": "명령 팔레트",
+    "placeholder": "명령을 입력하거나 페어 검색...",
+    "noResults": "일치하는 명령이 없음",
+    "groups": {
+      "pair": "페어",
+      "go": "이동",
+      "view": "보기",
+      "app": "앱"
+    },
+    "newPair": "새 페어...",
+    "newTask": "새 작업...",
+    "pausePair": "페어 일시 중지",
+    "resumePair": "페어 재개",
+    "pairSettings": "페어 설정...",
+    "clearSession": "세션 지우기...",
+    "goPairs": "페어 허브",
+    "goActivity": "활동",
+    "goInsights": "인사이트",
+    "openPair": "페어 열기",
+    "toggleSidebar": "사이드바 토글",
+    "toggleTheme": "테마 전환",
+    "keyboardShortcuts": "키보드 단축키...",
+    "checkUpdates": "업데이트 확인"
   }
 }

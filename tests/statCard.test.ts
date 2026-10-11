@@ -22,8 +22,8 @@ test('StatCard uses cn utility for class merging', () => {
   assert.match(source, /import.*\bcn\b.*from/)
 })
 
-test('StatCard uses glass-card CSS class', () => {
-  assert.match(source, /glass-card/)
+test('StatCard uses the shell-card surface class', () => {
+  assert.match(source, /shell-card/)
 })
 
 test('StatCard colorMap is typed to StatCardProps color union', () => {

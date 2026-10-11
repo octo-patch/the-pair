@@ -99,7 +99,7 @@ export function ConfirmModal({
   const toneClass = variant === 'destructive' ? 'state-error' : 'state-running'
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 font-mono">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <motion.div
         variants={overlayVariants}
         initial="hidden"
@@ -117,14 +117,11 @@ export function ConfirmModal({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className="glass-modal relative w-full max-w-md outline-none"
+        className="shell-card relative w-full max-w-md outline-none"
       >
-        <div className="flex items-baseline justify-between border-b border-border px-4 py-2.5">
+        <div className="flex items-baseline justify-between border-b border-border px-4 py-3">
           <div className="flex items-baseline gap-2 min-w-0">
-            <span aria-hidden className="text-foreground/70 select-none">
-              {'>_'}
-            </span>
-            <h2 className="text-[12px] uppercase tracking-[0.14em] font-bold text-foreground truncate">
+            <h2 className="text-[14px] font-semibold tracking-tight text-foreground truncate">
               {title}
             </h2>
           </div>
@@ -139,7 +136,7 @@ export function ConfirmModal({
         <div className="p-4">
           <div className="flex items-baseline gap-2">
             <AlertTriangle size={11} className={cn('translate-y-px', toneClass)} />
-            <p className="text-[12px] leading-relaxed text-foreground/90">{message}</p>
+            <p className="text-[13px] leading-relaxed text-foreground/90">{message}</p>
           </div>
         </div>
         <div className="flex items-center justify-end gap-2 px-4 pb-3 pt-2 border-t border-border">

@@ -39,7 +39,8 @@
     "running": "Running",
     "stop": "Stop",
     "resume": "Resume",
-    "pause": "Pause"
+    "pause": "Pause",
+    "dismiss": "Dismiss"
   },
   "status": {
     "Idle": "Idle",
@@ -399,7 +400,9 @@
     "toolCall": "Tool call",
     "lines": "lines",
     "output": "Output",
-    "lastActivityAgo": "last activity {{time}} ago"
+    "lastActivityAgo": "last activity {{time}} ago",
+    "subtitle": "Live status and recent events across all pairs.",
+    "attentionHint": "{{count}} pair needs a human decision — select one above to jump in."
   },
   "errors": {
     "executionError": "Execution Error",
@@ -438,8 +441,6 @@
     "title": "Task History",
     "empty": "No previous tasks yet.",
     "backToCurrent": "Back to Current",
-    "copyMD": "Copy MD",
-    "exportHTML": "Export HTML",
     "restoreTask": "Restore this task",
     "restoreDisabledBusy": "Pause or stop the pair before restoring a task"
   },
@@ -449,7 +450,13 @@
     "newPair": "New Pair",
     "pausePair": "Pause Pair",
     "resumePair": "Resume Pair",
-    "showShortcuts": "Show Shortcuts"
+    "showShortcuts": "Show Shortcuts",
+    "toggleSidebar": "Toggle Sidebar",
+    "commandPalette": "Command Palette",
+    "goBack": "Back to Pairs",
+    "goPairs": "Go to Pairs",
+    "goActivity": "Go to Activity",
+    "goInsights": "Go to Insights"
   },
   "quickActions": {
     "create": "New Pair"
@@ -466,5 +473,47 @@
     "loginLaunched": "Terminal opened — complete login, then click Refresh",
     "loginFailed": "Could not open terminal. Run this command manually:",
     "copyCommand": "Copy"
+  },
+  "shell": {
+    "navLabel": "Primary",
+    "pairs": "Pairs",
+    "activity": "Activity",
+    "insights": "Insights"
+  },
+  "hub": {
+    "title": "Pairs",
+    "subtitle": "Pick a pair to open its console, or spin up a new one."
+  },
+  "insights": {
+    "subtitle": "Cross-run model performance across every pair."
+  },
+  "recovery": {
+    "title": "Recovered sessions",
+    "description": "{{count}} restored pair needs a human decision — pick one to continue."
+  },
+  "palette": {
+    "title": "Command Palette",
+    "placeholder": "Type a command or search pairs...",
+    "noResults": "No matching commands",
+    "groups": {
+      "pair": "Pair",
+      "go": "Go to",
+      "view": "View",
+      "app": "App"
+    },
+    "newPair": "New pair...",
+    "newTask": "New task...",
+    "pausePair": "Pause pair",
+    "resumePair": "Resume pair",
+    "pairSettings": "Pair settings...",
+    "clearSession": "Clear session...",
+    "goPairs": "Pairs hub",
+    "goActivity": "Activity",
+    "goInsights": "Insights",
+    "openPair": "Open pair",
+    "toggleSidebar": "Toggle sidebar",
+    "toggleTheme": "Toggle theme",
+    "keyboardShortcuts": "Keyboard shortcuts...",
+    "checkUpdates": "Check for updates"
   }
 }

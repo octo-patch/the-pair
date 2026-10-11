@@ -1,11 +1,9 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
-import { RotateCcw, Clipboard, Download } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { GlassButton } from './ui/GlassButton'
 import { TerminalDivider } from './terminal/TerminalDivider'
 import type { PairRunSummary } from '../store/usePairStore'
-import type { TimelineData } from '../lib/timeline'
 
 interface TaskHistoryPanelProps {
   runHistory: PairRunSummary[]
@@ -15,7 +13,8 @@ interface TaskHistoryPanelProps {
   onRestoreTask: (run: PairRunSummary) => void
   /** Disables restore while the pair is busy — restoring would kill the running run. */
   restoreDisabled?: boolean
-  timeline?: TimelineData | null
+  /** Rendered inside an InspectorSection; when set, skip the own header. */
+  bare?: boolean
 }
 
 function formatDate(ts: number): string {
@@ -33,44 +32,37 @@ function getDuration(startedAt: number, finishedAt?: number): string {
   return `${hours}h ${minutes % 60}m`
 }
 
-export function TaskHistoryPanel({
+function HistoryList({
   runHistory,
   viewingRunId,
   onSelectTask,
   onBackToCurrent,
   onRestoreTask,
-  restoreDisabled = false,
-  timeline
-}: TaskHistoryPanelProps): React.ReactNode {
+  restoreDisabled
+}: Omit<TaskHistoryPanelProps, 'bare'>): React.ReactNode {
   const { t } = useTranslation()
 
   if (runHistory.length === 0) {
-    return (
-      <div className="space-y-1 font-mono">
-        <TerminalDivider label={t('history.title')} />
-        <p className="text-[10px] text-muted-foreground-faint pl-2">— {t('history.empty')} —</p>
-      </div>
-    )
+    return <p className="text-[10px] text-muted-foreground-faint pl-2">— {t('history.empty')} —</p>
   }
 
   const sorted = [...runHistory].reverse()
 
   return (
-    <div className="font-mono space-y-1">
-      <div className="flex items-baseline justify-between">
-        <TerminalDivider label={t('history.title')} className="flex-1" />
-        {viewingRunId && (
+    <>
+      {viewingRunId && (
+        <div className="flex justify-end">
           <GlassButton
             variant="ghost"
             size="sm"
             onClick={onBackToCurrent}
-            className="ml-2 h-5 px-1.5 text-[9px]"
+            className="h-5 px-1.5 text-[9px]"
           >
             ← {t('history.backToCurrent')}
           </GlassButton>
-        )}
-      </div>
-      <div className="border border-border bg-background/40 overflow-hidden rounded-sm">
+        </div>
+      )}
+      <div className="shell-card overflow-hidden">
         <div className="max-h-[320px] overflow-y-auto scrollbar-thin">
           {sorted.map((run, idx) => {
             const isViewing = viewingRunId === run.id
@@ -128,35 +120,6 @@ export function TaskHistoryPanel({
                   </div>
                 </button>
 
-                {isViewing && timeline && (
-                  <div className="flex gap-1 px-2 pb-2">
-                    <GlassButton
-                      variant="ghost"
-                      size="sm"
-                      onClick={async () => {
-                        const { copyMarkdownReport } = await import('../lib/reportExport')
-                        await copyMarkdownReport(timeline)
-                      }}
-                      icon={<Clipboard size={9} />}
-                      className="h-5 px-1.5 text-[9px]"
-                    >
-                      {t('history.copyMD')}
-                    </GlassButton>
-                    <GlassButton
-                      variant="ghost"
-                      size="sm"
-                      onClick={async () => {
-                        const { exportAsHtml } = await import('../lib/reportExport')
-                        await exportAsHtml(timeline)
-                      }}
-                      icon={<Download size={9} />}
-                      className="h-5 px-1.5 text-[9px]"
-                    >
-                      {t('history.exportHTML')}
-                    </GlassButton>
-                  </div>
-                )}
-
                 <button
                   type="button"
                   onClick={(e) => {
@@ -180,13 +143,56 @@ export function TaskHistoryPanel({
                         )
                   )}
                 >
-                  <RotateCcw size={10} />
+                  <span aria-hidden className="text-[10px] leading-none">
+                    ↺
+                  </span>
                 </button>
               </div>
             )
           })}
         </div>
       </div>
+    </>
+  )
+}
+
+export function TaskHistoryPanel({
+  runHistory,
+  viewingRunId,
+  onSelectTask,
+  onBackToCurrent,
+  onRestoreTask,
+  restoreDisabled = false,
+  bare = false
+}: TaskHistoryPanelProps): React.ReactNode {
+  const { t } = useTranslation()
+
+  if (bare) {
+    return (
+      <HistoryList
+        runHistory={runHistory}
+        viewingRunId={viewingRunId}
+        onSelectTask={onSelectTask}
+        onBackToCurrent={onBackToCurrent}
+        onRestoreTask={onRestoreTask}
+        restoreDisabled={restoreDisabled}
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between">
+        <TerminalDivider label={t('history.title')} className="flex-1" />
+      </div>
+      <HistoryList
+        runHistory={runHistory}
+        viewingRunId={viewingRunId}
+        onSelectTask={onSelectTask}
+        onBackToCurrent={onBackToCurrent}
+        onRestoreTask={onRestoreTask}
+        restoreDisabled={restoreDisabled}
+      />
     </div>
   )
 }

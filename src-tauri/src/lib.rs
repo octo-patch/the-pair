@@ -84,10 +84,29 @@ async fn git_push_changes(directory: String) -> Result<git_tracker::PushOutcome,
 }
 
 fn setup_menu(app: &AppHandle) -> tauri::Result<()> {
+    // App menu: standard macOS items plus update check. About/Settings are
+    // native; custom ids emit frontend events the renderer subscribes to.
     let app_menu = SubmenuBuilder::new(app, "The Pair")
+        .about(None)
+        .separator()
         .text("check_updates", "Check for Updates...")
         .separator()
-        .text("quit", "Quit The Pair")
+        .services()
+        .separator()
+        .hide()
+        .hide_others()
+        .show_all()
+        .separator()
+        .quit()
+        .build()?;
+
+    // File: pair lifecycle. Shortcuts are handled by the renderer's global
+    // key handler so they work identically with and without the menu bar.
+    let file_menu = SubmenuBuilder::new(app, "File")
+        .text("menu:new-pair", "New Pair...")
+        .text("menu:new-task", "New Task...")
+        .separator()
+        .close_window()
         .build()?;
 
     let edit_menu = SubmenuBuilder::new(app, "Edit")
@@ -101,8 +120,43 @@ fn setup_menu(app: &AppHandle) -> tauri::Result<()> {
         .select_all()
         .build()?;
 
+    // View: shell navigation + appearance.
+    let view_menu = SubmenuBuilder::new(app, "View")
+        .text("menu:go-pairs", "Go to Pairs")
+        .text("menu:go-activity", "Go to Activity")
+        .text("menu:go-insights", "Go to Insights")
+        .separator()
+        .text("menu:toggle-sidebar", "Toggle Sidebar")
+        .text("menu:toggle-theme", "Toggle Theme")
+        .separator()
+        .text("menu:palette", "Command Palette...")
+        .separator()
+        .fullscreen()
+        .build()?;
+
+    // Window: standard window management.
+    let window_menu = SubmenuBuilder::new(app, "Window")
+        .minimize()
+        .maximize()
+        .separator()
+        .text("menu:back", "Back to Pairs")
+        .build()?;
+
+    // Help: shortcuts reference + updates.
+    let help_menu = SubmenuBuilder::new(app, "Help")
+        .text("menu:shortcuts", "Keyboard Shortcuts")
+        .text("check_updates", "Check for Updates...")
+        .build()?;
+
     let menu = MenuBuilder::new(app)
-        .items(&[&app_menu, &edit_menu])
+        .items(&[
+            &app_menu,
+            &file_menu,
+            &edit_menu,
+            &view_menu,
+            &window_menu,
+            &help_menu,
+        ])
         .build()?;
     app.set_menu(menu)?;
 
@@ -111,6 +165,44 @@ fn setup_menu(app: &AppHandle) -> tauri::Result<()> {
             log::info!("Menu: Check for updates triggered");
             let _ = app_handle.emit("app:update:check", ());
             log::info!("Emitting app:update:check event");
+        }
+        // Custom ids re-dispatch as frontend events; App.tsx subscribes and
+        // routes them through the same handlers as the palette + shortcuts.
+        "menu:new-pair" => {
+            let _ = app_handle.emit("app:menu:new-pair", ());
+        }
+        "menu:new-task" => {
+            let _ = app_handle.emit("app:menu:new-task", ());
+        }
+        "menu:pause" => {
+            let _ = app_handle.emit("app:menu:pause", ());
+        }
+        "menu:resume" => {
+            let _ = app_handle.emit("app:menu:resume", ());
+        }
+        "menu:back" => {
+            let _ = app_handle.emit("app:menu:back", ());
+        }
+        "menu:toggle-sidebar" => {
+            let _ = app_handle.emit("app:menu:toggle-sidebar", ());
+        }
+        "menu:toggle-theme" => {
+            let _ = app_handle.emit("app:menu:toggle-theme", ());
+        }
+        "menu:go-pairs" => {
+            let _ = app_handle.emit("app:menu:go-pairs", ());
+        }
+        "menu:go-activity" => {
+            let _ = app_handle.emit("app:menu:go-activity", ());
+        }
+        "menu:go-insights" => {
+            let _ = app_handle.emit("app:menu:go-insights", ());
+        }
+        "menu:shortcuts" => {
+            let _ = app_handle.emit("app:menu:shortcuts", ());
+        }
+        "menu:palette" => {
+            let _ = app_handle.emit("app:menu:palette", ());
         }
         "quit" => {
             app_handle.exit(0);

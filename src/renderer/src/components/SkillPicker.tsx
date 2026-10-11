@@ -117,7 +117,7 @@ export function SkillPicker({ projectDir, onSelect }: SkillPickerProps): React.R
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute top-full right-0 mt-1 w-80 max-h-96 overflow-hidden rounded-sm border border-border bg-popover z-50 font-mono text-[12px]"
+          className="absolute top-full right-0 mt-1 w-80 max-h-96 overflow-hidden rounded-md border border-border bg-popover z-50 text-[13px]"
         >
           <div className="px-2 py-1.5 border-b border-border flex items-center gap-2">
             <span aria-hidden className="text-muted-foreground-faint select-none">

@@ -256,10 +256,7 @@ export function AssignTaskModal({ pair, isOpen, onClose }: AssignTaskModalProps)
       }
       className="max-w-3xl"
     >
-      <form
-        onSubmit={handleSubmit}
-        className="flex flex-col h-[70vh] max-h-[600px] font-mono text-[12px]"
-      >
+      <form onSubmit={handleSubmit} className="flex flex-col h-[70vh] max-h-[600px] text-[13px]">
         <div className="flex-1 overflow-y-auto min-h-0 flex flex-col gap-3 scrollbar-thin">
           <div className="border border-border rounded-sm px-3 py-1.5">
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">

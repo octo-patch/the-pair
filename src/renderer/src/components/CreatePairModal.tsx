@@ -258,7 +258,7 @@ export function CreatePairModal({ isOpen, onClose }: CreatePairModalProps): Reac
       title={t('modals.createTitle')}
       className="max-w-3xl"
     >
-      <form onSubmit={handleSubmit} className="flex flex-col h-full font-mono text-[12px]">
+      <form onSubmit={handleSubmit} className="flex flex-col h-full text-[13px]">
         <div className="flex flex-col gap-3 overflow-y-auto flex-1 pr-1 -mr-1">
           <div>
             <div className="mb-1 flex items-baseline gap-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">

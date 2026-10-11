@@ -22,9 +22,13 @@
 
 **macOS** • **Windows** • **Linux** &nbsp;|&nbsp; [**⬇ Download**](https://github.com/timwuhaotian/the-pair/releases) &nbsp;•&nbsp; [**CLI**](https://github.com/timwuhaotian/pair-code) &nbsp;•&nbsp; [**🌐 Website**](https://apps.timwuhaotian.dev/)
 
-![The Pair desktop app — Mentor and Executor AI agents collaborating on a coding task in real time, with live conversation, tool calls, and git changes](https://github.com/user-attachments/assets/b9d0f06c-c167-45f1-9154-0c49187296ab)
+![The Pair desktop app — Mentor and Executor AI agents collaborating in the session console, with the models, run state, and git inspector alongside](./docs/assets/pair-detail.png)
 
 _Watch Mentor and Executor agents collaborate in real-time_
+
+[![The Pair 10-second launch film — two agents, one review](./docs/assets/launch-10s-poster.jpg)](docs/assets/launch-10s.mp4)
+
+▶️ **Watch the 10-second launch film** — 4K60 · built from the real app · click the frame above
 
 </div>
 
@@ -92,11 +96,11 @@ For AI crawlers and search systems, see [llms.txt](llms.txt), the reusable [Soft
 - **Automated Collaboration** — Agents work together without constant human intervention
 - **Smart Coordination** — Structured handoff prompts, quality gates, and smart pauses keep iterations focused
 - **Real-Time Monitoring** — CPU/memory per agent with live activity tracking and stall detection
-- **Operations Panel** — Dashboard surfaces attention items, running pairs, resource load, workspaces, and changed files at a glance
+- **Activity View** — Attention items, running pairs, resource load, and recent events across all pairs at a glance
 - **Git Integration** — Automatic tracking of all file changes plus inline diff viewer for any modified file
 - **Human Oversight** — Step in at any time to pause, adjust, reassign, or resume after the iteration limit
 - **Session Recovery** — Resume interrupted sessions with full conversation history and turn state restored
-- **Onboarding Wizard** — Guided first-time setup with model configuration and directory selection
+- **Guided First Run** — Empty-state setup flow with model configuration and directory selection
 - **i18n Support** — English, 简体中文, 日本語, and 한국어 with persisted language preference
 - **Dark/Light Themes** — Automatic system theme detection with manual toggle
 
@@ -142,17 +146,27 @@ Both use the same Mentor + Executor idea: one agent plans and reviews, the other
 - **Token Tracking** — Real-time per-turn input/output token usage in timeline, turn cards, and run reports
 - **Skill System** — Attach project-specific skill files to guide agent behavior
 - **Global Shortcuts** — Platform-agnostic shortcuts for new pair, pair settings, focus console, and mute
+- **Command Palette** — Fuzzy finder (⌘K) over every action with direct pair jump
+- **Native Menu Bar** — Full App / File / Edit / View / Window / Help menus with keyboard shortcuts
+- **Pairs Hub** — Workspace-grouped pair cards with status, quick actions, and a recovery banner
+- **Inspector Panel** — Collapsible sections for models, run state, resources, files, history, and timeline
 - **Auto-Update** — In-app update checking with one-click install
 
 ---
 
 ## Screenshots
 
-Review Result - Fail With Evidence
-<img width="2800" height="2000" alt="Review result showing failed evidence" src="./docs/assets/intro-1.png" />
+Pairs Hub
+<img width="2800" height="2000" alt="Pairs hub with workspace-grouped pair cards" src="./docs/assets/hub.png" />
 
-Review Result - Pass With Evidence
-<img width="2800" height="2000" alt="Review result showing passing evidence" src="./docs/assets/intro-3.png" />
+Pair Detail — Review
+<img width="2800" height="2000" alt="Pair detail with session console and inspector" src="./docs/assets/pair-detail.png" />
+
+Command Palette
+<img width="2800" height="2000" alt="Command palette with fuzzy search and pair jump" src="./docs/assets/palette.png" />
+
+Live Execution
+<img width="2800" height="2000" alt="Live executor turn with stop control and queued input" src="./docs/assets/pair-running.png" />
 
 ---
 
@@ -274,8 +288,9 @@ Each pair maintains its own runtime configuration in `.pair/runtime/<pairId>/` w
 ├─────────────────────────────────────────────────────────┤
 │  Frontend (React UI)                                    │
 │  ┌──────────────┬──────────────┬──────────────────┐    │
-│  │  Dashboard   │ PairConsole  │    Settings      │    │
-│  │ (Ops Panel)  │ (Unified)    │  (Onboarding)    │    │
+│  │  Pairs Hub   │ PairConsole  │   Inspector    │    │
+│  │  + Activity  │ (Unified)    │  (Collapsible) │    │
+│  │  + Insights  │              │                │    │
 │  └──────────────┴──────────────┴──────────────────┘    │
 │                          ↕ Tauri IPC                    │
 ├─────────────────────────────────────────────────────────┤

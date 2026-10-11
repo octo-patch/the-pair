@@ -38,16 +38,16 @@ interface ActivityItemProps {
 export function ActivityItem({ activity, className }: ActivityItemProps): React.ReactNode {
   const g = GLYPH[activity.type]
   return (
-    <div className={cn('flex items-baseline gap-2 py-1 font-mono text-[11px]', className)}>
+    <div className={cn('flex items-baseline gap-2 py-1.5 text-[13px]', className)}>
       <span aria-hidden className={cn('shrink-0 select-none w-[1ch] tabular-nums', g.tone)}>
         {g.char}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="text-foreground/85">
-          <span className="font-bold">{activity.pairName}</span>
+        <div className="text-foreground/90">
+          <span className="font-medium">{activity.pairName}</span>
           <span className="line-clamp-2 text-muted-foreground"> — {activity.description}</span>
         </div>
-        <div className="text-[10px] text-muted-foreground-faint">
+        <div className="font-mono text-[11px] text-muted-foreground-faint">
           · {formatRelativeTime(activity.timestamp)}
         </div>
       </div>

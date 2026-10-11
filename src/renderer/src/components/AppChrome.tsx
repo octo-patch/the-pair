@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import {
   ChevronLeft,
+  Command,
   Eraser,
   GitBranch,
   Keyboard,
@@ -35,6 +36,7 @@ interface AppChromeProps {
   onClearSession?: () => void
   onOpenSettings?: () => void
   onShowShortcuts?: () => void
+  onOpenPalette?: () => void
 }
 
 function ChromeIconButton({
@@ -71,7 +73,8 @@ export function AppChrome({
   onBack,
   onClearSession,
   onOpenSettings,
-  onShowShortcuts
+  onShowShortcuts,
+  onOpenPalette
 }: AppChromeProps): React.ReactNode {
   const { t } = useTranslation()
   const pairBusy = selectedPair ? isPairBusy(selectedPair.status) : false
@@ -105,7 +108,7 @@ export function AppChrome({
 
   return (
     <div className="app-chrome shrink-0">
-      <div className="app-drag flex items-center justify-between gap-3 px-4 py-2 font-mono">
+      <div className="app-drag flex items-center justify-between gap-3 px-4 py-2">
         <div className="flex min-w-0 items-baseline gap-2">
           {selectedPair ? (
             <ChromeIconButton onClick={onBack} testId="chrome-back" title="back">
@@ -118,10 +121,10 @@ export function AppChrome({
           )}
 
           <div className="min-w-0 flex flex-wrap items-baseline gap-2">
-            <h1 className="truncate text-[12px] font-bold tracking-[0.06em] text-foreground">
+            <h1 className="truncate text-[13px] font-semibold tracking-tight text-foreground">
               {selectedPair ? selectedPair.name : t('chrome.title')}
             </h1>
-            <span className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground-faint">
+            <span className="font-mono text-[10px] tabular-nums text-muted-foreground-faint">
               v{appVersion ?? '…'}
             </span>
             <a
@@ -134,7 +137,7 @@ export function AppChrome({
                   console.error('[AppChrome] Failed to open link:', error)
                 })
               }}
-              className="app-no-drag text-[10px] uppercase tracking-[0.14em] text-muted-foreground-faint hover:text-foreground/80 transition-colors"
+              className="app-no-drag text-[11px] text-muted-foreground-faint hover:text-foreground/80 transition-colors"
               title="timwuhaotian"
             >
               · by timwuhaotian
@@ -152,7 +155,7 @@ export function AppChrome({
             )}
             {selectedPair && (selectedPair.worktreeBranch || selectedPair.branch) && (
               <span
-                className="inline-flex items-baseline gap-1 border border-border px-1.5 py-px text-[9px] text-muted-foreground"
+                className="inline-flex items-baseline gap-1 rounded-full border border-border px-2 py-px font-mono text-[10px] text-muted-foreground"
                 title={selectedPair.worktreePath}
                 data-testid="chrome-branch-chip"
               >
@@ -163,13 +166,13 @@ export function AppChrome({
               </span>
             )}
             {(selectedPair?.pendingMentorModel || selectedPair?.pendingExecutorModel) && (
-              <span className="inline-flex items-baseline gap-1 border border-state-running/40 bg-state-running/12 px-1.5 py-px text-[9px] uppercase tracking-[0.14em] state-running">
+              <span className="inline-flex items-baseline gap-1 rounded-full border border-state-running/40 bg-state-running/12 px-2 py-px text-[10px] font-medium state-running">
                 → {t('chrome.modelsQueued')}
               </span>
             )}
             <p
               className={cn(
-                'mt-0.5 w-full min-w-0 truncate text-[10px] text-muted-foreground',
+                'mt-0.5 w-full min-w-0 truncate text-[12px] text-muted-foreground',
                 'sm:mt-0 sm:w-auto sm:basis-auto'
               )}
               title={selectedPair?.spec || selectedPair?.directory}
@@ -224,6 +227,16 @@ export function AppChrome({
                 {t('chrome.newTask')}
               </GlassButton>
             </>
+          )}
+
+          {onOpenPalette && (
+            <ChromeIconButton
+              onClick={onOpenPalette}
+              title={`${t('palette.title')} · ${modifierLabel}K`}
+              testId="chrome-palette"
+            >
+              <Command size={13} />
+            </ChromeIconButton>
           )}
 
           {onShowShortcuts && (

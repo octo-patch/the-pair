@@ -63,7 +63,7 @@ export function PairSettingsModal({
       title={t('modals.pairDefaults', { name: pair.name })}
       className="max-w-3xl"
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3 font-mono text-[12px]">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3 text-[13px]">
         <div className="border-l-2 border-border bg-background/40 px-3 py-2">
           <div className="flex items-baseline gap-2">
             <SlidersHorizontal size={11} className="text-muted-foreground translate-y-px" />

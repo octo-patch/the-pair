@@ -109,7 +109,7 @@ function QuickPickRow({
       type="button"
       onClick={() => onSelect(model)}
       className={cn(
-        'flex w-full items-baseline gap-2 border px-2 py-1 text-left rounded-sm transition-colors cursor-pointer font-mono text-[11px]',
+        'flex w-full items-baseline gap-2 border px-2 py-1 text-left rounded-md transition-colors cursor-pointer font-mono text-[11px]',
         selected
           ? cn(c.border, c.bg, c.fg)
           : 'border-border hover:bg-foreground/[0.05] hover:border-foreground/40'
@@ -342,7 +342,7 @@ export function ModelPicker({
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             aria-expanded={isDropdownOpen}
             className={cn(
-              'flex w-full items-center gap-2 border px-2 py-1.5 text-left rounded-sm transition-colors cursor-pointer font-mono text-[12px]',
+              'flex w-full items-center gap-2 border px-2 py-1.5 text-left rounded-md transition-colors cursor-pointer font-mono text-[12px]',
               current.model ? c.border : 'border-border hover:border-foreground/40'
             )}
           >
@@ -378,7 +378,7 @@ export function ModelPicker({
           {isDropdownOpen && (
             <div
               className={cn(
-                'absolute left-0 right-0 z-50 overflow-hidden border border-border bg-popover rounded-sm',
+                'absolute left-0 right-0 z-50 overflow-hidden border border-border bg-popover rounded-md',
                 dropUp ? 'bottom-full mb-1' : 'top-full mt-1'
               )}
             >
@@ -395,7 +395,7 @@ export function ModelPicker({
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={handleSearchKeyDown}
                     placeholder={t('pickers.searchModels')}
-                    className="w-full border border-border bg-background py-1 pl-7 pr-2 text-[12px] text-foreground placeholder:text-muted-foreground-faint focus:border-foreground/40 focus:outline-none rounded-sm font-mono"
+                    className="w-full border border-border bg-background py-1 pl-7 pr-2 text-[12px] text-foreground placeholder:text-muted-foreground-faint focus:border-foreground/40 focus:outline-none rounded-md font-mono"
                   />
                 </div>
               </div>
@@ -419,7 +419,7 @@ export function ModelPicker({
                             }}
                             title={model.displayName}
                             className={cn(
-                              'flex w-full items-center gap-2 px-2 py-1 text-left rounded-sm transition-colors cursor-pointer font-mono text-[11px]',
+                              'flex w-full items-center gap-2 px-2 py-1 text-left rounded-md transition-colors cursor-pointer font-mono text-[11px]',
                               isActiveModel ? cn(c.bg, c.fg) : 'hover:bg-foreground/[0.05]'
                             )}
                           >
@@ -458,7 +458,7 @@ export function ModelPicker({
                                     onClick={() => selectRoute(model, route)}
                                     title={route.accessLabel}
                                     className={cn(
-                                      'flex w-full items-baseline gap-2 px-2 py-1 text-left rounded-sm transition-colors cursor-pointer font-mono text-[10px]',
+                                      'flex w-full items-baseline gap-2 px-2 py-1 text-left rounded-md transition-colors cursor-pointer font-mono text-[10px]',
                                       selectedRoute
                                         ? c.fg
                                         : 'text-muted-foreground hover:bg-foreground/[0.05]'
@@ -547,7 +547,7 @@ export function ModelPicker({
                 </button>
               )}
             </div>
-            <div className="flex flex-1 border border-border rounded-sm overflow-hidden">
+            <div className="flex flex-1 border border-border rounded-md overflow-hidden">
               {activeRoute.effortOptions.map((option) => {
                 const isActive = option.value === current.effort?.value
                 return (
@@ -578,7 +578,7 @@ export function ModelPicker({
   if (variant === 'card') {
     return (
       <div
-        className={cn('flex flex-col border rounded-sm p-3 font-mono', c.border, 'bg-background')}
+        className={cn('flex flex-col border rounded-md p-3 font-mono', c.border, 'bg-background')}
       >
         <div className="mb-2 flex items-baseline gap-2">
           <span aria-hidden className={c.fg}>

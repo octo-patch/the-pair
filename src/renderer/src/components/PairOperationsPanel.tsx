@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Check,
+  ChevronDown,
   CloudUpload,
   GitCommitHorizontal,
   Loader2,
@@ -14,7 +15,7 @@ import {
 import { cn, extractErrorMessage } from '../lib/utils'
 import { usePairStore, type Pair } from '../store/usePairStore'
 import { TaskHistoryPanel } from './TaskHistoryPanel'
-import { TimelinePanel } from './TimelinePanel'
+import { TimelinePanel, TimelineActions } from './TimelinePanel'
 import { ErrorDetailPanel } from './ErrorDetailPanel'
 import { IterationProgress } from './IterationProgress'
 import { GlassButton } from './ui/GlassButton'
@@ -22,10 +23,10 @@ import { ResourceMeter } from './ui/ResourceMeter'
 import { buildTimeline } from '../lib/timeline'
 import { isPairActive, isPairBusy } from '../lib/pairStatus'
 import { isAgentExecuting } from '../lib/helpers'
-import { TerminalDivider } from './terminal/TerminalDivider'
 import { modifierLabel, shiftLabel } from '../lib/shortcuts'
-import { FileDiffModal } from './FileDiffModal'
 import { ModelPicker } from './ModelPicker'
+import { InspectorSection } from './inspector/InspectorSection'
+import { InlineDiff } from './inspector/InlineDiff'
 import { buildTimelineSource, resolveViewingRun } from './consoleView'
 
 interface PairOperationsPanelProps {
@@ -36,8 +37,68 @@ interface PairOperationsPanelProps {
   className?: string
 }
 
-function SectionHeader({ label }: { label: string }): React.ReactNode {
-  return <TerminalDivider label={label} className="py-0.5" />
+function fileStatusTone(status: string): string {
+  if (status === 'A') return 'state-done'
+  if (status === 'M') return 'state-running'
+  if (status === 'D') return 'state-error'
+  if (status === 'R') return 'role-executor'
+  return 'text-muted-foreground-faint'
+}
+
+interface ModifiedFile {
+  path: string
+  displayPath: string
+  status: string
+}
+
+function ModifiedFileRow({
+  file,
+  expanded,
+  diff,
+  loading,
+  error,
+  onToggle
+}: {
+  file: ModifiedFile
+  expanded: boolean
+  diff: string | null
+  loading: boolean
+  error: string | null
+  onToggle: () => void
+}): React.ReactNode {
+  return (
+    <div className="shell-card overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        data-testid={`ops-file-row-${file.path}`}
+        title={file.path}
+        className="flex w-full items-baseline gap-2 px-2 py-1.5 text-left text-[12px] text-muted-foreground transition-colors hover:bg-foreground/[0.05] cursor-pointer"
+      >
+        <ChevronDown
+          size={10}
+          aria-hidden
+          className={cn(
+            'shrink-0 translate-y-px text-muted-foreground-faint transition-transform duration-150',
+            !expanded && '-rotate-90'
+          )}
+        />
+        <span className={cn('shrink-0 tabular-nums w-[1ch]', fileStatusTone(file.status))}>
+          {file.status === '??' ? '?' : file.status}
+        </span>
+        <span className="min-w-0 flex-1 truncate">{file.displayPath}</span>
+      </button>
+      {expanded && (
+        <div
+          data-testid={`ops-file-diff-${file.path}`}
+          className="border-t border-border/50 bg-background/40 max-h-[320px] overflow-auto scrollbar-thin"
+        >
+          <InlineDiff diff={diff} loading={loading} error={error} />
+        </div>
+      )}
+    </div>
+  )
 }
 
 function PairOperationsPanel({
@@ -55,10 +116,12 @@ function PairOperationsPanel({
   const availableModels = usePairStore((s) => s.availableModels)
   const updatePairModels = usePairStore((s) => s.updatePairModels)
 
-  const [diffModalFile, setDiffModalFile] = useState<{ path: string; status: string } | null>(null)
-  const [diffContent, setDiffContent] = useState<string | null>(null)
-  const [diffLoading, setDiffLoading] = useState(false)
-  const [diffError, setDiffError] = useState<string | null>(null)
+  // Expanded file with its cached diff. One open at a time keeps the inspector
+  // compact; the diff cache survives toggling so re-opening is instant.
+  const [expandedPath, setExpandedPath] = useState<string | null>(null)
+  const [diffCache, setDiffCache] = useState<Record<string, string>>({})
+  const [diffErrorCache, setDiffErrorCache] = useState<Record<string, string>>({})
+  const [diffLoadingPath, setDiffLoadingPath] = useState<string | null>(null)
   // Monotonic token so a slow diff for an earlier file can't render under a later file.
   const diffRequestRef = useRef(0)
   const [isRetrying, setIsRetrying] = useState(false)
@@ -244,28 +307,36 @@ function PairOperationsPanel({
     }
   }
 
-  const handleFileClick = async (file: { path: string; status: string }): Promise<void> => {
-    const requestId = ++diffRequestRef.current
-    setDiffModalFile(file)
-    setDiffContent(null)
-    setDiffLoading(true)
-    setDiffError(null)
-    try {
-      const diff = await window.api.repo.getFileDiff(pair.directory, file.path, file.status)
-      if (requestId !== diffRequestRef.current) return
-      setDiffContent(diff)
-    } catch (err) {
-      if (requestId !== diffRequestRef.current) return
-      setDiffError(err instanceof Error ? err.message : t('pair.failedToLoadDiff'))
-    } finally {
-      if (requestId === diffRequestRef.current) setDiffLoading(false)
+  const handleToggleFile = (file: ModifiedFile): void => {
+    if (expandedPath === file.path) {
+      setExpandedPath(null)
+      return
     }
-  }
-
-  const handleCloseDiff = (): void => {
-    diffRequestRef.current += 1
-    setDiffModalFile(null)
-    setDiffLoading(false)
+    setExpandedPath(file.path)
+    if (diffCache[file.path] || diffErrorCache[file.path] || diffLoadingPath === file.path) return
+    const requestId = ++diffRequestRef.current
+    setDiffLoadingPath(file.path)
+    void window.api.repo
+      .getFileDiff(pair.directory, file.path, file.status)
+      .then((diff) => {
+        if (requestId !== diffRequestRef.current) return
+        setDiffCache((prev) => ({ ...prev, [file.path]: diff }))
+        setDiffErrorCache((prev) => {
+          const next = { ...prev }
+          delete next[file.path]
+          return next
+        })
+      })
+      .catch((err: unknown) => {
+        if (requestId !== diffRequestRef.current) return
+        setDiffErrorCache((prev) => ({
+          ...prev,
+          [file.path]: err instanceof Error ? err.message : t('pair.failedToLoadDiff')
+        }))
+      })
+      .finally(() => {
+        if (requestId === diffRequestRef.current) setDiffLoadingPath(null)
+      })
   }
 
   const formatRunStamp = (ts?: number): string => {
@@ -283,11 +354,14 @@ function PairOperationsPanel({
 
   const mentorIsExecuting = isAgentExecuting(pair.mentorActivity.phase)
   const executorIsExecuting = isAgentExecuting(pair.executorActivity.phase)
+  const failedChecks = pair.latestAcceptance
+    ? pair.latestAcceptance.checks.filter((c) => c.status === 'failed').length
+    : 0
 
   return (
     <aside
       className={cn(
-        'flex h-full flex-col gap-3 overflow-y-auto border-l border-border bg-background/40 px-4 py-3 font-mono text-[11px] scrollbar-thin',
+        'flex h-full flex-col gap-4 overflow-y-auto border-l border-border bg-background px-4 py-4 text-[13px] scrollbar-thin',
         className
       )}
     >
@@ -377,13 +451,15 @@ function PairOperationsPanel({
       )}
 
       {pair.latestAcceptance && (
-        <div className="space-y-1">
-          <SectionHeader label={t('pair.latestAcceptance')} />
-          <div className="flex items-center gap-1.5">
-            {pair.latestAcceptance.verdict && (
+        <InspectorSection
+          id="acceptance"
+          label={t('pair.latestAcceptance')}
+          defaultOpen={false}
+          badge={
+            pair.latestAcceptance.verdict && (
               <span
                 className={cn(
-                  'border px-1.5 py-px text-[9px] uppercase tracking-[0.14em]',
+                  'border px-1 py-px text-[9px] uppercase tracking-[0.14em]',
                   pair.latestAcceptance.verdict.verdict === 'pass'
                     ? 'border-state-done bg-state-done state-done'
                     : 'border-state-running bg-state-running state-running'
@@ -391,22 +467,31 @@ function PairOperationsPanel({
               >
                 [{pair.latestAcceptance.verdict.verdict}]
               </span>
-            )}
+            )
+          }
+        >
+          <div className="flex items-center gap-1.5">
             <span className="text-muted-foreground">risk·{pair.latestAcceptance.risk}</span>
-            <span className="text-muted-foreground">
-              fail·
-              {pair.latestAcceptance.checks.filter((c) => c.status === 'failed').length}
-            </span>
+            <span className="text-muted-foreground">fail·{failedChecks}</span>
             {pair.latestAcceptance.error && <span className="state-error">err</span>}
           </div>
           <p className="text-foreground/80 leading-relaxed [overflow-wrap:anywhere]">
             {pair.latestAcceptance.summary}
           </p>
-        </div>
+        </InspectorSection>
       )}
 
-      <div className="space-y-1">
-        <SectionHeader label={t('common.models')} />
+      <InspectorSection
+        id="models"
+        label={t('common.models')}
+        badge={
+          (pair.pendingMentorModel || pair.pendingExecutorModel) && (
+            <span className="text-[9px] uppercase tracking-[0.14em] state-running">
+              {t('panel.modelsQueuedBadge')}
+            </span>
+          )
+        }
+      >
         <div className="space-y-2">
           <div className="flex items-baseline justify-between">
             <span className="flex items-baseline gap-1.5">
@@ -527,15 +612,19 @@ function PairOperationsPanel({
             </div>
           )}
         </div>
-      </div>
+      </InspectorSection>
 
-      <div className="space-y-1.5">
-        <SectionHeader label={t('pair.runState')} />
-        <div className="flex items-baseline justify-between">
-          <span className="text-muted-foreground">{t('pair.run', { count: pair.runCount })}</span>
-          <span className="border border-border bg-secondary/40 px-1.5 py-px text-[10px] uppercase tracking-[0.14em] text-foreground/90">
+      <InspectorSection
+        id="run-state"
+        label={t('pair.runState')}
+        badge={
+          <span className="border border-border bg-secondary/40 px-1 py-px text-[9px] uppercase tracking-[0.14em] text-foreground/90">
             {t(`status.${pair.status}`, { defaultValue: pair.status })}
           </span>
+        }
+      >
+        <div className="flex items-baseline justify-between">
+          <span className="text-muted-foreground">{t('pair.run', { count: pair.runCount })}</span>
         </div>
         <div className="text-[10px] text-muted-foreground">
           {t('pair.started', { date: formatRunStamp(pair.currentRunStartedAt) })} · {runStateText}
@@ -545,15 +634,23 @@ function PairOperationsPanel({
           max={pair.maxIterations}
           adaptiveBudget={pair.adaptiveBudget}
         />
-      </div>
+      </InspectorSection>
 
-      <div className="space-y-1.5">
-        <SectionHeader label={t('pair.systemResources')} />
+      <InspectorSection id="resources" label={t('pair.systemResources')} defaultOpen={false}>
         <ResourceMeter cpu={pair.cpuUsage} mem={pair.memUsage} compact />
-      </div>
+      </InspectorSection>
 
-      <div className="space-y-1">
-        <SectionHeader label={t('pair.modifiedFiles')} />
+      <InspectorSection
+        id="files"
+        label={t('pair.modifiedFiles')}
+        badge={
+          hasChanges ? (
+            <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground">
+              {pair.modifiedFiles.length}
+            </span>
+          ) : undefined
+        }
+      >
         {!pair.gitTracking.available ? (
           <div className="text-[10px] state-running">! {t('pair.gitUnavailable')}</div>
         ) : (
@@ -563,28 +660,17 @@ function PairOperationsPanel({
                 — {t('pair.noModifiedFiles')}
               </div>
             ) : (
-              <div className="space-y-px">
+              <div className="space-y-1">
                 {pair.modifiedFiles.map((file) => (
-                  <button
+                  <ModifiedFileRow
                     key={file.path}
-                    onClick={() => handleFileClick(file)}
-                    title={file.path}
-                    className="flex w-full items-baseline gap-2 truncate text-left text-[10px] text-muted-foreground hover:bg-foreground/[0.05] px-1 -mx-1 rounded-sm transition-colors"
-                  >
-                    <span
-                      className={cn(
-                        'shrink-0 tabular-nums w-[1ch]',
-                        file.status === 'A' && 'state-done',
-                        file.status === 'M' && 'state-running',
-                        file.status === 'D' && 'state-error',
-                        file.status === 'R' && 'role-executor',
-                        file.status === '??' && 'text-muted-foreground-faint'
-                      )}
-                    >
-                      {file.status === '??' ? '?' : file.status}
-                    </span>
-                    <span className="truncate">{file.displayPath}</span>
-                  </button>
+                    file={file}
+                    expanded={expandedPath === file.path}
+                    diff={diffCache[file.path] ?? null}
+                    loading={diffLoadingPath === file.path}
+                    error={diffErrorCache[file.path] ?? null}
+                    onToggle={() => handleToggleFile(file)}
+                  />
                 ))}
               </div>
             )}
@@ -669,30 +755,40 @@ function PairOperationsPanel({
             </div>
           </>
         )}
-      </div>
+      </InspectorSection>
 
       {/* Restoring starts a new run, which would kill the one in progress. */}
-      <TaskHistoryPanel
-        runHistory={pair.runHistory}
-        viewingRunId={viewingRun?.id ?? null}
-        onSelectTask={(runId) => setViewingRunId(runId)}
-        onBackToCurrent={() => setViewingRunId(null)}
-        onRestoreTask={(run) => onRestoreTask(run.spec, run.mentorModel, run.executorModel)}
-        restoreDisabled={isPairBusy(pair.status)}
-        timeline={viewingRun ? timelineData : null}
-      />
+      <InspectorSection
+        id="history"
+        label={t('pair.taskHistory')}
+        defaultOpen={pair.runHistory.length > 0}
+        badge={
+          pair.runHistory.length > 0 ? (
+            <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground">
+              {pair.runHistory.length}
+            </span>
+          ) : undefined
+        }
+      >
+        <TaskHistoryPanel
+          runHistory={pair.runHistory}
+          viewingRunId={viewingRun?.id ?? null}
+          onSelectTask={(runId) => setViewingRunId(runId)}
+          onBackToCurrent={() => setViewingRunId(null)}
+          onRestoreTask={(run) => onRestoreTask(run.spec, run.mentorModel, run.executorModel)}
+          restoreDisabled={isPairBusy(pair.status)}
+          bare
+        />
+      </InspectorSection>
 
-      <TimelinePanel timeline={timelineData} />
-
-      <FileDiffModal
-        isOpen={diffModalFile !== null}
-        onClose={handleCloseDiff}
-        filePath={diffModalFile?.path ?? ''}
-        status={diffModalFile?.status ?? ''}
-        diff={diffContent}
-        loading={diffLoading}
-        error={diffError}
-      />
+      <InspectorSection
+        id="timeline"
+        label={t('pair.timeline')}
+        defaultOpen={false}
+        actions={timelineData ? <TimelineActions timeline={timelineData} /> : undefined}
+      >
+        <TimelinePanel timeline={timelineData} bare />
+      </InspectorSection>
     </aside>
   )
 }

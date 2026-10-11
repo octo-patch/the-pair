@@ -39,7 +39,8 @@
     "running": "运行中",
     "stop": "停止",
     "resume": "继续",
-    "pause": "暂停"
+    "pause": "暂停",
+    "dismiss": "关闭"
   },
   "status": {
     "Idle": "空闲",
@@ -399,7 +400,9 @@
     "toolCall": "工具调用",
     "lines": "行",
     "output": "输出",
-    "lastActivityAgo": "上次活动 {{time}} 前"
+    "lastActivityAgo": "上次活动 {{time}} 前",
+    "subtitle": "所有 Pair 的实时状态与最近事件。",
+    "attentionHint": "有 {{count}} 个 Pair 需要人工处理 — 点击上方进入。"
   },
   "errors": {
     "executionError": "执行错误",
@@ -438,8 +441,6 @@
     "title": "任务历史",
     "empty": "还没有历史任务。",
     "backToCurrent": "返回当前",
-    "copyMD": "复制 Markdown",
-    "exportHTML": "导出 HTML",
     "restoreTask": "恢复此任务",
     "restoreDisabledBusy": "恢复任务前请先暂停或停止该 Pair"
   },
@@ -449,7 +450,13 @@
     "newPair": "新建 Pair",
     "pausePair": "暂停 Pair",
     "resumePair": "恢复 Pair",
-    "showShortcuts": "显示快捷键"
+    "showShortcuts": "显示快捷键",
+    "toggleSidebar": "切换侧边栏",
+    "commandPalette": "命令面板",
+    "goBack": "返回 Pairs",
+    "goPairs": "前往 Pairs",
+    "goActivity": "前往动态",
+    "goInsights": "前往洞察"
   },
   "quickActions": {
     "create": "新建 Pair"
@@ -466,5 +473,47 @@
     "loginLaunched": "终端已打开 — 完成登录后请点击刷新",
     "loginFailed": "无法打开终端，请手动运行此命令：",
     "copyCommand": "复制"
+  },
+  "shell": {
+    "navLabel": "主导航",
+    "pairs": "Pairs",
+    "activity": "动态",
+    "insights": "洞察"
+  },
+  "hub": {
+    "title": "Pairs",
+    "subtitle": "选择一个 Pair 打开会话，或创建一个新的。"
+  },
+  "insights": {
+    "subtitle": "所有 Pair 的跨运行模型表现。"
+  },
+  "recovery": {
+    "title": "已恢复的会话",
+    "description": "有 {{count}} 个恢复的 Pair 需要人工处理 — 选择一个继续。"
+  },
+  "palette": {
+    "title": "命令面板",
+    "placeholder": "输入命令或搜索 Pair...",
+    "noResults": "没有匹配的命令",
+    "groups": {
+      "pair": "Pair",
+      "go": "前往",
+      "view": "视图",
+      "app": "应用"
+    },
+    "newPair": "新建 Pair...",
+    "newTask": "新建任务...",
+    "pausePair": "暂停 Pair",
+    "resumePair": "恢复 Pair",
+    "pairSettings": "Pair 设置...",
+    "clearSession": "清空会话...",
+    "goPairs": "Pairs 主页",
+    "goActivity": "动态",
+    "goInsights": "洞察",
+    "openPair": "打开 Pair",
+    "toggleSidebar": "切换侧边栏",
+    "toggleTheme": "切换主题",
+    "keyboardShortcuts": "键盘快捷键...",
+    "checkUpdates": "检查更新"
   }
 }

@@ -8,11 +8,7 @@ interface StatCardProps {
   'data-testid'?: string
 }
 
-/**
- * Flat terminal stat tile. Visual lineage from "stat card" is gone but the
- * `glass-card` class (now a CSS shim → flat surface) and grid placement are
- * preserved so existing tests + parent layouts still work.
- */
+/** Shell stat tile: sans label, tabular-nums value, card surface. */
 const colorMap: Record<StatCardProps['color'], { text: string; glyph: string }> = {
   primary: { text: 'text-foreground', glyph: '●' },
   green: { text: 'state-done', glyph: '●' },
@@ -30,21 +26,20 @@ export function StatCard({
   const c = colorMap[color]
   return (
     <div
-      className={cn(
-        'glass-card flex items-baseline justify-between px-3 py-2.5 font-mono',
-        className
-      )}
+      className={cn('shell-card flex items-center justify-between px-3.5 py-3', className)}
       data-testid={testId}
     >
-      <div className="flex items-baseline gap-2 min-w-0">
-        <span aria-hidden className={cn('select-none', c.text)}>
+      <div className="flex min-w-0 items-center gap-2">
+        <span aria-hidden className={cn('shrink-0 select-none text-[10px]', c.text)}>
           {c.glyph}
         </span>
-        <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground truncate">
+        <span className="truncate text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
           {label}
         </span>
       </div>
-      <div className={cn('text-lg tabular-nums leading-none font-bold', c.text)}>{value}</div>
+      <div className={cn('shrink-0 text-xl tabular-nums leading-none font-semibold', c.text)}>
+        {value}
+      </div>
     </div>
   )
 }

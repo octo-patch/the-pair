@@ -29,7 +29,7 @@ test('per-pair panels are keyed by pair id so drafts never leak across pairs', a
   assert.match(dashboard, /<PairOperationsPanel\s+key=\{selectedPair\.id\}/)
 })
 
-test('operations panel is visible at the 1200px minimum window width', async () => {
+test('detail layout keeps console and inspector side by side from lg up', async () => {
   const dashboard = await read('Dashboard.tsx')
   assert.doesNotMatch(dashboard, /hidden w-\[320px\] shrink-0 xl:flex/)
   assert.match(dashboard, /lg:flex lg:flex-col/)

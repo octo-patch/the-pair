@@ -102,7 +102,7 @@ function PresetPopover({
         createPortal(
           <div
             ref={popoverRef}
-            className="fixed z-[9999] w-64 rounded-sm border border-border bg-popover p-3 font-mono text-[11px]"
+            className="fixed z-[9999] w-64 rounded-md border border-border bg-popover p-3 text-[12px]"
             style={{ top: position.top, left: position.left }}
             onMouseEnter={show}
             onFocus={show}
@@ -157,7 +157,7 @@ function PresetCard({
     <button
       type="button"
       className={cn(
-        'relative border px-2 py-1.5 rounded-sm transition-colors cursor-pointer font-mono text-[11px] text-left w-full',
+        'relative border px-2 py-1.5 rounded-md transition-colors cursor-pointer text-[12px] text-left w-full',
         selected
           ? cn(c.border, c.bg)
           : 'border-border bg-background hover:border-foreground/40 hover:bg-foreground/[0.04]'
@@ -230,7 +230,7 @@ export function PresetPicker({
 
   if (!loading && presets.length === 0) {
     return (
-      <div className="flex flex-col items-start gap-2 border border-dashed border-border bg-background/40 px-3 py-4 font-mono text-[11px]">
+      <div className="flex flex-col items-start gap-2 border border-dashed border-border bg-background/40 px-3 py-4 text-[12px]">
         <div className="flex items-baseline gap-2">
           <AlertCircle size={11} className="state-running translate-y-px" />
           <span className="text-foreground/85">{t('pickers.noPresets')}</span>

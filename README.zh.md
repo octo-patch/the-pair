@@ -20,9 +20,13 @@
 
 **macOS** • **Windows** • **Linux** &nbsp;|&nbsp; [**⬇ 下载**](https://github.com/timwuhaotian/the-pair/releases) &nbsp;•&nbsp; [**CLI**](https://github.com/timwuhaotian/pair-code) &nbsp;•&nbsp; [**🌐 官网**](https://apps.timwuhaotian.dev/)
 
-![The Pair 桌面应用 — Mentor 与 Executor 两个 AI Agent 实时协作完成编码任务，展示对话、工具调用与 Git 变更](https://github.com/user-attachments/assets/b9d0f06c-c167-45f1-9154-0c49187296ab)
+![The Pair 桌面应用 — Mentor 与 Executor 在会话控制台中协作，右侧是模型、运行状态与 Git 检查器](./docs/assets/pair-detail.png)
 
 _实时观察 Mentor 和 Executor Agent 的协作过程_
+
+[![The Pair 10 秒发布短片 — 两个 Agent，一次审查](./docs/assets/launch-10s-poster.jpg)](docs/assets/launch-10s.mp4)
+
+▶️ **观看 10 秒发布短片** — 4K60 · 由真实应用构建 · 点击上方画面播放
 
 </div>
 
@@ -64,6 +68,10 @@ _实时观察 Mentor 和 Executor Agent 的协作过程_
 - **会话恢复** — 中断的会话可完整恢复对话历史
 - **引导式配置** — 首次使用引导，完成模型配置和目录选择
 - **深色/浅色主题** — 自动检测系统主题并支持手动切换
+- **命令面板** — ⌘K 模糊搜索所有操作，可直达任意 Pair
+- **原生菜单栏** — 完整的应用 / 文件 / 编辑 / 视图 / 窗口 / 帮助菜单与快捷键
+- **Pairs 主页** — 按工作区分组的 Pair 卡片，含状态、快捷操作与恢复横幅
+- **检查器面板** — 模型、运行状态、资源、文件、历史与时间线的可折叠分区
 
 ### 使用场景
 
@@ -94,11 +102,17 @@ _实时观察 Mentor 和 Executor Agent 的协作过程_
 
 ## 截图
 
-审查结果 - 未通过（含证据）
-<img width="2800" height="2000" alt="审查结果显示未通过证据" src="./docs/assets/intro-1.png" />
+Pairs 主页
+<img width="2800" height="2000" alt="按工作区分组的 Pair 卡片主页" src="./docs/assets/hub.png" />
 
-审查结果 - 通过（含证据）
-<img width="2800" height="2000" alt="审查结果显示通过证据" src="./docs/assets/intro-3.png" />
+Pair 详情 — 审查
+<img width="2800" height="2000" alt="带会话控制台与检查器的 Pair 详情" src="./docs/assets/pair-detail.png" />
+
+命令面板
+<img width="2800" height="2000" alt="带模糊搜索与 Pair 跳转的命令面板" src="./docs/assets/palette.png" />
+
+实时执行
+<img width="2800" height="2000" alt="带停止控制与排队输入的实时执行轮次" src="./docs/assets/pair-running.png" />
 
 ---
 

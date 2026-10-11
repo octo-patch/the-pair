@@ -7,8 +7,8 @@ const insightsPanel = await readFile(
   'utf8'
 )
 
-const dashboard = await readFile(
-  new URL('../src/renderer/src/components/Dashboard.tsx', import.meta.url),
+const shellViews = await readFile(
+  new URL('../src/renderer/src/components/ShellViews.tsx', import.meta.url),
   'utf8'
 )
 
@@ -46,7 +46,7 @@ test('InsightsPanel renders the overall success rate', () => {
   assert.match(insightsPanel, /summary\.successfulRuns/)
 })
 
-test('Dashboard mounts InsightsPanel when no pair is selected', () => {
-  assert.match(dashboard, /import \{ InsightsPanel \} from '\.\/InsightsPanel'/)
-  assert.match(dashboard, /<InsightsPanel \/>/)
+test('Dashboard mounts InsightsPanel on the shell insights section', () => {
+  assert.match(shellViews, /import \{ InsightsPanel \} from '\.\/InsightsPanel'/)
+  assert.match(shellViews, /<InsightsPanel/)
 })
