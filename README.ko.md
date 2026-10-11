@@ -24,9 +24,9 @@
 
 _Mentor와 Executor 에이전트의 실시간 협업 과정을 지켜보세요_
 
-[![The Pair 10초 런치 필름 — 두 에이전트, 한 번의 리뷰](./docs/assets/launch-10s-poster.jpg)](docs/assets/launch-10s.mp4)
+[![The Pair 10초 런치 필름 — 두 에이전트, 한 번의 리뷰](./docs/assets/launch-10s.gif)](docs/assets/launch-10s.mp4)
 
-▶️ **10초 런치 필름 보기** — 4K60 · 실제 앱으로 제작 · 위 이미지를 클릭해 재생
+🎬 **10초 런치 필름 · 음소거 자동 재생** — [4K60 원본（소리 포함）보기](docs/assets/launch-10s.mp4)
 
 </div>
 

@@ -24,9 +24,9 @@
 
 _实时观察 Mentor 和 Executor Agent 的协作过程_
 
-[![The Pair 10 秒发布短片 — 两个 Agent，一次审查](./docs/assets/launch-10s-poster.jpg)](docs/assets/launch-10s.mp4)
+[![The Pair 10 秒发布短片 — 两个 Agent，一次审查](./docs/assets/launch-10s.gif)](docs/assets/launch-10s.mp4)
 
-▶️ **观看 10 秒发布短片** — 4K60 · 由真实应用构建 · 点击上方画面播放
+🎬 **10 秒发布短片 · 默认静音自动播放** — [观看 4K60 原版（含声音）](docs/assets/launch-10s.mp4)
 
 </div>
 

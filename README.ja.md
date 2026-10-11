@@ -24,9 +24,9 @@
 
 _MentorとExecutorエージェントのリアルタイムコラボレーションを観察_
 
-[![The Pair 10秒ランチフィルム — 2つのエージェント、1つのレビュー](./docs/assets/launch-10s-poster.jpg)](docs/assets/launch-10s.mp4)
+[![The Pair 10秒ランチフィルム — 2つのエージェント、1つのレビュー](./docs/assets/launch-10s.gif)](docs/assets/launch-10s.mp4)
 
-▶️ **10秒ランチフィルムを見る** — 4K60 · 実際のアプリから構築 · 上の画像をクリックして再生
+🎬 **10秒ランチフィルム · ミュート自動再生** — [4K60 オリジナル（音声あり）を見る](docs/assets/launch-10s.mp4)
 
 </div>
 

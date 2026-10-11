@@ -26,9 +26,9 @@
 
 _Watch Mentor and Executor agents collaborate in real-time_
 
-[![The Pair 10-second launch film — two agents, one review](./docs/assets/launch-10s-poster.jpg)](docs/assets/launch-10s.mp4)
+[![The Pair 10-second launch film — two agents, one review](./docs/assets/launch-10s.gif)](docs/assets/launch-10s.mp4)
 
-▶️ **Watch the 10-second launch film** — 4K60 · built from the real app · click the frame above
+🎬 **The 10-second launch film, autoplaying muted** — [watch the 4K60 original with sound](docs/assets/launch-10s.mp4)
 
 </div>
 
