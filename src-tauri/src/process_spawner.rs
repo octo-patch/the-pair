@@ -75,6 +75,12 @@ const MIN_STEP_INTERVAL_MS: u64 = 50;
 const KILL_GRACE: Duration = Duration::from_secs(2);
 /// How long to wait for a provider to exit after it closed stdout.
 const EXIT_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
+/// Wall-clock cap on one turn. A turn that produces no stdout line for this
+/// long is killed and reported as an error: providers that never emit
+/// `step_start` (Claude, Codex, agy, aider) otherwise have no runaway guard
+/// at all, and a wedged CLI would burn tokens forever. Generous on purpose —
+/// a single long model call with no streamed output stays under it.
+const TURN_IDLE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 /// Stderr lines kept per turn for error reporting.
 const STDERR_TAIL_LINES: usize = 40;
 
@@ -228,6 +234,9 @@ enum TurnExit {
     /// The child exited (or had to be killed after closing stdout); the
     /// status is `None` when it could not be determined.
     Exited(Option<std::process::ExitStatus>),
+    /// The child closed stdout but never exited, so we killed it. Its output
+    /// is truncated and must not be treated as a completed turn.
+    KilledAfterStdoutClose,
     /// Someone else (pause, kill, delete, a newer turn) took the child.
     Cancelled,
 }
@@ -259,7 +268,7 @@ async fn await_turn_exit(active: &ActiveProcessMap, key: &str, turn_id: u64) -> 
                         );
                         kill_process_tree(&mut process.child);
                     }
-                    return TurnExit::Exited(None);
+                    return TurnExit::KilledAfterStdoutClose;
                 }
                 Ok(None) => {}
                 Err(_) => {
@@ -830,11 +839,33 @@ impl SessionUsageTotals {
         self.totals().get(session_id).copied()
     }
 
+    /// Seed a session's baseline from a restored snapshot so the first resumed
+    /// turn reports only its own share, not the whole session total. No-op
+    /// when a live baseline already exists (it is fresher).
+    fn seed(&self, session_id: &str, total: SessionTotal) {
+        self.totals()
+            .entry(session_id.to_string())
+            .or_insert(total);
+    }
+
     fn record(&self, session_id: &str, total: &TurnTokenUsage) {
         self.totals().insert(
             session_id.to_string(),
             (total.input_tokens, total.output_tokens),
         );
+    }
+}
+
+/// Seed the session-usage baseline for a restored pair from its snapshot's
+/// recorded per-role totals, so token accounting survives an app restart.
+pub fn seed_session_usage_baselines(
+    mentor: Option<(&str, Option<&TurnTokenUsage>)>,
+    executor: Option<(&str, Option<&TurnTokenUsage>)>,
+) {
+    for (session_id, usage) in [mentor, executor].into_iter().flatten() {
+        if let Some(usage) = usage {
+            SESSION_USAGE_TOTALS.seed(session_id, (usage.input_tokens, usage.output_tokens));
+        }
     }
 }
 
@@ -1274,6 +1305,10 @@ struct TurnFacts<'a> {
     repair_attempts: u32,
     iteration: u32,
     max_iterations: u32,
+    /// A budget pause was already handed to the mentor and this review is its
+    /// aftermath: another executor turn cannot make progress, so a `continue`
+    /// verdict must finish for a human instead of ping-ponging.
+    budget_review: bool,
     plan_gate_enabled: bool,
     /// Dev-smoke guard: the smoke run still needs greetings before finishing.
     smoke_needs_more: bool,
@@ -1337,6 +1372,20 @@ fn decide_turn_outcome(facts: &TurnFacts<'_>) -> TurnDecision {
         }
 
         if facts.verdict.is_some() {
+            if facts.budget_review {
+                // The executor already hit the iteration budget and this
+                // review is the pause's aftermath. Handing back would re-hit
+                // the budget check before any work — pause for a human
+                // instead (Assign a new task or raise the budget to continue).
+                return TurnDecision::Pause {
+                    detail: format!(
+                        "Iteration budget reached ({}/{}). The mentor reviewed the last work; assign a new task or raise the budget to continue.",
+                        facts.iteration, facts.max_iterations
+                    ),
+                    hand_to_mentor: false,
+                    ends_run: true,
+                };
+            }
             // continue (or an unexpected finish the mentor didn't confirm):
             // the executor works through the instructions.
             return TurnDecision::Handoff {
@@ -1875,6 +1924,7 @@ async fn complete_turn(tc: TurnContext, out: TurnOutput) {
             .unwrap_or(0),
         iteration: state.iteration,
         max_iterations: state.max_iterations,
+        budget_review: state.max_iterations > 0 && state.iteration >= state.max_iterations,
         plan_gate_enabled: state.plan_gate,
         smoke_needs_more,
         smoke_finish_before_review: should_allow_mentor_finish_before_review_for_dev_smoke(
@@ -2525,18 +2575,39 @@ impl ProcessSpawner {
 
             // Step cycle detection to prevent infinite loops
             let mut step_cycle_guard = StepCycleGuard::new();
+            let mut idle_timed_out = false;
 
             loop {
                 buf.clear();
-                match reader.read_until(b'\n', &mut buf).await {
-                    Ok(0) => break,
-                    Ok(_) => {}
-                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-                    Err(error) => {
+                // Idle wall-clock cap: no line within TURN_IDLE_TIMEOUT kills
+                // the turn (covers providers with no step_start events).
+                let read = tokio::time::timeout(
+                    TURN_IDLE_TIMEOUT,
+                    reader.read_until(b'\n', &mut buf),
+                )
+                .await;
+                match read {
+                    Ok(Ok(0)) => break,
+                    Ok(Ok(_)) => {}
+                    Ok(Err(error)) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Ok(Err(error)) => {
                         println!(
                             "[ProcessSpawner] [{}] {}: stdout read error: {}",
                             pair_id, role, error
                         );
+                        break;
+                    }
+                    Err(_) => {
+                        idle_timed_out = true;
+                        println!(
+                            "[ProcessSpawner] [{}] {}: no output for {:?}; terminating turn",
+                            pair_id, role, TURN_IDLE_TIMEOUT
+                        );
+                        if let Some(mut process) =
+                            take_own_process(&active_processes, &process_key, turn_id)
+                        {
+                            kill_process_tree(&mut process.child);
+                        }
                         break;
                     }
                 }
@@ -2791,6 +2862,23 @@ impl ProcessSpawner {
 
             println!("[ProcessSpawner] [{}] {} output closed", pair_id, role);
 
+            if idle_timed_out {
+                let decision = TurnDecision::Error {
+                    detail: format!(
+                        "{} produced no output for {} minutes and was terminated. Resume to retry the turn.",
+                        role,
+                        TURN_IDLE_TIMEOUT.as_secs() / 60
+                    ),
+                };
+                if tc
+                    .if_current(|broker| apply_turn_decision(&tc, broker, &decision))
+                    .is_some()
+                {
+                    finish_turn_bookkeeping(&tc, &decision).await;
+                }
+                return;
+            }
+
             // Reap the child to learn how it ended. If the slot no longer
             // holds this turn's child, the turn was cancelled.
             let exit = await_turn_exit(&active_processes, &process_key, turn_id).await;
@@ -2801,12 +2889,13 @@ impl ProcessSpawner {
                 .and_then(ProviderAdapter::read_last_message_file);
             drop(last_message_file);
 
-            let exit_status = match exit {
+            let (exit_status, killed_after_stdout_close) = match exit {
                 TurnExit::Cancelled => {
                     tc.log_stale("process was stopped");
                     return;
                 }
-                TurnExit::Exited(status) => status,
+                TurnExit::Exited(status) => (status, false),
+                TurnExit::KilledAfterStdoutClose => (None, true),
             };
 
             let (mut final_output, terminal_success) = collector.finish(final_output_from_file);
@@ -2838,10 +2927,19 @@ impl ProcessSpawner {
             // A hard error reported in the stream wins, then one a plain-text
             // provider printed (aider exits 0 on a failed model call);
             // otherwise a failed exit without a terminal success event is the
-            // turn's error (kiro's only failure signal).
+            // turn's error (kiro's only failure signal). A turn we had to kill
+            // after stdout closed is truncated — never a completed turn.
             let turn_error = provider_turn_error
                 .take()
                 .or(plain_output_error)
+                .or_else(|| {
+                    killed_after_stdout_close.then(|| {
+                        format!(
+                            "process did not exit within {}s after closing output and was killed; its reply is truncated",
+                            EXIT_WAIT_TIMEOUT.as_secs()
+                        )
+                    })
+                })
                 .or_else(|| exit_failure.filter(|_| !terminal_success));
 
             let no_text_output = final_output.trim().is_empty();
@@ -4221,6 +4319,7 @@ mod tests {
             repair_attempts: 0,
             iteration: 1,
             max_iterations: 0,
+            budget_review: false,
             plan_gate_enabled: false,
             smoke_needs_more: false,
             smoke_finish_before_review: false,
@@ -4336,6 +4435,33 @@ mod tests {
         );
         plan.plan_gate_enabled = true;
         assert_eq!(decide_turn_outcome(&plan), TurnDecision::AwaitHumanReview);
+    }
+
+    #[test]
+    fn budget_review_with_a_continue_verdict_pauses_instead_of_ping_ponging() {
+        // After a budget pause handed to the mentor, a `continue` verdict must
+        // not hand back to an executor that re-hits the budget before working.
+        let cont = verdict(
+            AcceptanceVerdictDecision::Pass,
+            AcceptanceNextAction::Continue,
+            0.8,
+        );
+        let mut f = facts("mentor", true, "{}");
+        f.verdict = Some(&cont);
+        f.iteration = 3;
+        f.max_iterations = 3;
+        f.budget_review = true;
+        assert!(matches!(
+            decide_turn_outcome(&f),
+            TurnDecision::Pause { ends_run: true, hand_to_mentor: false, .. }
+        ));
+
+        // Same review below budget still hands off normally.
+        f.budget_review = false;
+        assert_eq!(
+            decide_turn_outcome(&f),
+            TurnDecision::Handoff { next_role: "executor" }
+        );
     }
 
     #[test]

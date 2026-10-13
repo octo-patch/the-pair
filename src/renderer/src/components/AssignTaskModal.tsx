@@ -351,7 +351,7 @@ export function AssignTaskModal({ pair, isOpen, onClose }: AssignTaskModalProps)
               ref={textareaRef}
               value={spec}
               onChange={(e) => setSpec(e.target.value)}
-              placeholder="describe the next task for this pair. mention expected outcome, constraints, and how you want them to verify the work. use @filename to reference files."
+              placeholder={t('onboarding.taskPlaceholder')}
               rows={6}
               className="w-full resize-none rounded-sm border border-border bg-background px-2 py-1.5 text-[12px] leading-relaxed text-foreground placeholder:text-muted-foreground-faint focus:outline-none focus:border-foreground/60"
               required
@@ -368,8 +368,7 @@ export function AssignTaskModal({ pair, isOpen, onClose }: AssignTaskModalProps)
               />
             </div>
             <p className="text-[10px] text-muted-foreground-faint">
-              {spec.length > 0 ? `${spec.length} ${t('common.chars')} · ` : ''}· type @ to reference
-              files · fresh planning loop on next run
+              {t('onboarding.charsHint', { count: spec.length })}
             </p>
           </div>
 

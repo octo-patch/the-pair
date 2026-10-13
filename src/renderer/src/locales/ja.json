@@ -17,7 +17,6 @@
     "deleting": "削除中...",
     "loading": "読み込み中...",
     "refresh": "更新",
-    "chars": "文字",
     "turn": "ターン",
     "idle": "アイドル",
     "paused": "一時停止中",
@@ -40,7 +39,8 @@
     "stop": "停止",
     "resume": "再開",
     "pause": "一時停止",
-    "dismiss": "閉じる"
+    "dismiss": "閉じる",
+    "back": "戻る"
   },
   "chrome": {
     "title": "The Pair",
@@ -110,7 +110,8 @@
       "runs": "ラン数",
       "success": "成功率",
       "avgIter": "平均反復",
-      "avgTokens": "平均トークン"
+      "avgTokens": "平均トークン",
+      "coldStart": "実行履歴がまだ蓄積中です — {{min}} 件の実行が記録されるとリーダーボードが表示されます（現在 {{count}} 件）。"
     },
     "stats": {
       "total": "すべてのペア",
@@ -226,7 +227,8 @@
     "deleteDesc": "ペア、そのスナップショット、および復元可能なセッションが完全に削除されます。",
     "deleteWorktreeNote": "ワークツリーも削除されます。未コミットの変更は git stash に保存され、ペアのコミットは the-pair/… ブランチに残ります。",
     "deleteFailed": "ペアを削除できませんでした: {{error}}",
-    "presetTaskMissing": "開始する前に、プリセットテンプレートのプレースホルダーをタスク内容に置き換えてください。"
+    "presetTaskMissing": "開始する前に、プリセットテンプレートのプレースホルダーをタスク内容に置き換えてください。",
+    "pickDirectory": "ディレクトリを選択"
   },
   "pickers": {
     "mentorLabel": "メンター",

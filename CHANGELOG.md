@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.11.1] - 2026-10-14
+
+Reliability and polish patch on top of the 2.11.0 shell: runaway turns now die instead of burning tokens forever, budget handoffs stop ping-ponging, session restore is race-free, and several provider CLI mismatches are corrected.
+
+### Fixed
+
+- **Runaway turn guard.** A turn that produces no output for 30 minutes is killed and reported as an error — providers that never emit step events (Claude, Codex, agy, aider) previously had no wedged-process protection at all.
+- **Truncated turns are never "completed".** A process that closes stdout but never exits is killed after the grace period and its reply is reported as truncated instead of being accepted as a finished turn.
+- **Iteration budget ping-pong.** When the executor hits the iteration budget and the mentor's review says "continue", the pair now pauses for a human (assign a new task or raise the budget) instead of handing back to an executor that immediately re-hits the budget.
+- **Plan-gate rejection kept the budget.** Rejecting a gated plan mid-run re-plans without resetting the iteration counter or wiping the acceptance history keyed by it.
+- **Session restore races.** Restoring a snapshot now supersedes any turn still live in the process (generation bump + process kill) and seeds the token-usage baseline, so a resumed Session-scope provider reports only its own share after an app restart.
+- **Kimi model aliases.** A user alias literally named `kimi/k3` (stored legacy-bare) is no longer wrongly stripped to `k3`, which made the CLI throw `model.not_found`; the qualified `kimi/kimi/k3` form still strips exactly one routing layer.
+- **Muse provider pinning.** Turns always pass `--provider meta`, so a user's `settings.json` provider override can no longer reroute the turn and kill JSON output (verified on Muse Code 1.4.7).
+- **Dropped handoffs on fast first turns.** A turn that hands off before the freshly created pair lands in the store triggers one pair reload instead of stranding the pair in a running state forever.
+- **Command shortcuts inside text fields.** Cmd+K, Cmd+1–3 and friends now fire while a text field has focus; bare-key shortcuts still stay suppressed so typing never triggers commands.
+- **Accidental transcript wipes.** Clearing the console from its own button now asks for the same confirmation as the toolbar and palette paths.
+
+### Changed
+
+- **Insights cold start.** The cross-run leaderboard section shows a hint explaining what unlocks it instead of rendering nothing until 5 runs are recorded.
+- **Model picker direction.** The dropdown flips upward automatically when its trigger sits in the lower half of the window (previously hidden inside overflow-clipped modals), while an explicit `dropUp` still wins.
+- **Accessibility.** Pair-card quick actions are real buttons visible on keyboard focus, and icon-only chrome buttons carry aria labels.
+- **Localization.** The back button, directory picker, task placeholder and character hint are now translated across all four locales.
+
 ## [2.11.0] - 2026-10-12
 
 A new app shell. The window is organised around three sections — Pairs, Activity and Insights — in a collapsible source-list rail, with the pair console as the detail view you enter by picking a pair. The pairs home becomes a real hub: stat cards, workspace-grouped pair cards, and a banner for pairs restored from a snapshot that need a human decision. A Cmd+K command palette reaches every action and jumps to any pair. Typography splits deliberately: the shell chrome reads in sans, the agent conversation stays a monospaced terminal stream.

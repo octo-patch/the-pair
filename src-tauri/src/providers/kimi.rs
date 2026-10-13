@@ -23,11 +23,14 @@ use serde_json::Value;
 /// `--session`. Only the mentor role prompt keeps a Kimi mentor from editing
 /// the worktree.
 ///
-/// Failures are not reported on stdout either. A failed prompt prints
-/// `error: failed to run prompt: …` to stderr and exits 1; the only stdout
-/// meta events are `system.version`, `session.resume_hint` and the
-/// transient `turn.step.retrying`. So there is nothing for
-/// `extract_error_detail` to match, and failures are caught by exit status.
+/// Failures are not reported on stdout either. A failed prompt prints an
+/// `error: …` line to stderr and exits 1; the only stdout meta events are
+/// `system.version`, `session.resume_hint` and the transient
+/// `turn.step.retrying`. So there is nothing for `extract_error_detail` to
+/// match, and failures are caught by exit status.
+///
+/// Note: `--session` resume is pinned to the session's original cwd; if a
+/// pair's worktree is recreated at a new path the resumed turn fails.
 pub struct KimiProvider;
 
 impl Provider for KimiProvider {
@@ -40,10 +43,19 @@ impl Provider for KimiProvider {
     }
 
     fn build_turn_command(&self, request: &ProviderTurnRequest) -> ProviderTurnCommand {
-        // Strip provider prefix if present (e.g. "kimi/kimi-code/k3" → "kimi-code/k3").
-        // Kimi model aliases themselves contain slashes, so only the leading
-        // "kimi/" qualifier is removed.
-        let model = request.model.strip_prefix("kimi/").unwrap_or(request.model);
+        // The stored id is the Pair's routing-qualified form of the catalog
+        // row: `kimi/<alias>` where <alias> is the user's config.toml key
+        // verbatim. Strip exactly one `kimi/` layer — but only when what
+        // remains is itself a known-shaped alias. A bare alias that merely
+        // starts with `kimi/` (e.g. config key `kimi/k3` stored legacy-bare)
+        // must reach the CLI intact; stripping it makes kimi throw
+        // model.not_found. Distinguish by shape: the qualified form always
+        // has the provider word repeated or a managed `kimi-code/` segment:
+        //   "kimi/kimi-code/k3"  → "kimi-code/k3"   (qualified managed)
+        //   "kimi/kimi/k3"       → "kimi/k3"        (qualified user alias)
+        //   "kimi-code/k3"       → unchanged        (bare managed)
+        //   "kimi/k3"            → unchanged        (bare user alias)
+        let model = strip_kimi_qualifier(request.model);
         // The prompt is the value of `-p`; guard leading dashes so the arg parser
         // never mistakes a handoff message like "- Do the next step" for a flag.
         let prompt = if request.message.starts_with('-') {
@@ -140,6 +152,26 @@ impl Provider for KimiProvider {
 
 // ── Kimi-specific helpers ──────────────────────────────────────────────────
 
+/// Strip one routing qualifier from a stored kimi model id, never eating
+/// into the alias itself. See `build_turn_command` for the shape table.
+fn strip_kimi_qualifier(model: &str) -> &str {
+    let Some(rest) = model.strip_prefix("kimi/") else {
+        return model;
+    };
+    // Qualified forms: `kimi/kimi…` (the alias itself starts with the provider
+    // word) or `kimi/kimi-code…` (managed alias). A lone `kimi/k3` is a bare
+    // user alias whose key literally begins `kimi/` — pass it through.
+    if rest.starts_with("kimi/") || rest.starts_with("kimi-code") {
+        rest
+    } else if model.matches('/').count() >= 2 {
+        // `kimi/<provider>/<model>` shapes (e.g. a future managed route):
+        // more than one slash means the first segment was the qualifier.
+        rest
+    } else {
+        model
+    }
+}
+
 fn push_trimmed(out: &mut Vec<String>, s: &str) {
     let trimmed = s.trim();
     if trimmed.is_empty() {
@@ -200,6 +232,42 @@ mod tests {
             ]
         );
         assert!(command.last_message_path.is_none());
+    }
+
+    #[test]
+    fn kimi_bare_alias_starting_with_kimi_prefix_is_not_stripped() {
+        // A user alias literally named `kimi/k3` in config.toml, stored
+        // legacy-bare, must reach the CLI intact (kimi throws model.not_found
+        // for the stripped `k3`).
+        let provider = KimiProvider;
+        let command = provider.build_turn_command(&ProviderTurnRequest {
+            provider_kind: ProviderKind::Kimi,
+            model: "kimi/k3",
+            session_id: None,
+            role: "executor",
+            pair_id: "pair-1",
+            message: "do the work",
+            reasoning_effort: None,
+        });
+        let idx = command.args.iter().position(|a| a == "--model").unwrap();
+        assert_eq!(command.args[idx + 1], "kimi/k3");
+    }
+
+    #[test]
+    fn kimi_qualified_user_alias_strips_exactly_one_layer() {
+        // Catalog alias `kimi/k3` is stored qualified as `kimi/kimi/k3`.
+        let provider = KimiProvider;
+        let command = provider.build_turn_command(&ProviderTurnRequest {
+            provider_kind: ProviderKind::Kimi,
+            model: "kimi/kimi/k3",
+            session_id: None,
+            role: "executor",
+            pair_id: "pair-1",
+            message: "do the work",
+            reasoning_effort: None,
+        });
+        let idx = command.args.iter().position(|a| a == "--model").unwrap();
+        assert_eq!(command.args[idx + 1], "kimi/k3");
     }
 
     #[test]

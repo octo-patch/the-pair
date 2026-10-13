@@ -54,6 +54,7 @@ function ChromeIconButton({
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
       data-testid={testId}
       className="app-no-drag flex h-7 w-7 items-center justify-center rounded-sm border border-border bg-transparent text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:border-foreground/40 hover:text-foreground cursor-pointer"
     >
@@ -111,7 +112,7 @@ export function AppChrome({
       <div className="app-drag flex items-center justify-between gap-3 px-4 py-2">
         <div className="flex min-w-0 items-baseline gap-2">
           {selectedPair ? (
-            <ChromeIconButton onClick={onBack} testId="chrome-back" title="back">
+            <ChromeIconButton onClick={onBack} testId="chrome-back" title={t('common.back')}>
               <ChevronLeft size={14} />
             </ChromeIconButton>
           ) : (

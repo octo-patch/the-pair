@@ -17,7 +17,6 @@
     "deleting": "Deleting...",
     "loading": "Loading...",
     "refresh": "Refresh",
-    "chars": "chars",
     "turn": "turn",
     "idle": "idle",
     "paused": "Paused",
@@ -40,7 +39,8 @@
     "stop": "Stop",
     "resume": "Resume",
     "pause": "Pause",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "back": "Back"
   },
   "status": {
     "Idle": "Idle",
@@ -130,7 +130,8 @@
       "runs": "runs",
       "success": "success",
       "avgIter": "avg iter",
-      "avgTokens": "avg tokens"
+      "avgTokens": "avg tokens",
+      "coldStart": "Run history is still building — the leaderboard appears after {{min}} recorded runs ({{count}} so far)."
     }
   },
   "emptyState": {
@@ -236,7 +237,8 @@
     "deleteDesc": "This will permanently remove the pair, its snapshot, and its recoverable session.",
     "deleteWorktreeNote": "Its worktree is removed too: uncommitted changes are saved to git stash, and the pair's commits stay on its the-pair/… branch.",
     "deleteFailed": "Couldn't delete the pair: {{error}}",
-    "presetTaskMissing": "Replace the placeholder in the preset template with your task before starting."
+    "presetTaskMissing": "Replace the placeholder in the preset template with your task before starting.",
+    "pickDirectory": "Pick directory"
   },
   "pickers": {
     "mentorLabel": "Mentor",

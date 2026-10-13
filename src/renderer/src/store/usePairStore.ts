@@ -1330,8 +1330,18 @@ export const usePairStore = create<PairStore>((set) => ({
               return
             }
 
-            const state = usePairStore.getState()
-            const pair = state.pairs.find((p) => p.id === data.pairId)
+            let state = usePairStore.getState()
+            let pair = state.pairs.find((p) => p.id === data.pairId)
+
+            if (!pair && !_deletingPairs.has(data.pairId)) {
+              // The backend starts a new pair's first turn before pair_create
+              // returns, so a fast first turn can hand off before the pair
+              // lands in the store. Reload once instead of dropping the
+              // handoff and stranding the pair in a running state forever.
+              await state.loadAllPairs()
+              state = usePairStore.getState()
+              pair = state.pairs.find((p) => p.id === data.pairId)
+            }
 
             if (!pair || _deletingPairs.has(data.pairId)) {
               if (!pair) console.warn('[usePairStore] Pair not found for handoff:', data.pairId)

@@ -81,7 +81,8 @@ impl Provider for MuseProvider {
             input_transport: InputTransport::Stdio,
             output_transport: OutputTransport::JsonEvents,
             session_strategy: SessionStrategy::NewFirst,
-            // Turns always pass `--approval-mode never`; nothing is prompted.
+            // Turns always pass `--approval-mode never` plus `--provider meta`;
+            // nothing is prompted and a settings.json provider can't reroute.
             permission_strategy: PermissionStrategy::PreApproved,
             cwd_strategy: CwdStrategy::Worktree,
         }
@@ -95,6 +96,11 @@ impl Provider for MuseProvider {
         let mut args: Vec<String> = vec![
             "exec".into(),
             "--json".into(),
+            // Pin the provider: a user's settings.json `provider: "local"`
+            // otherwise overrides the `meta` default and the turn dies with
+            // no JSON on stdout (verified on Muse Code 1.4.7).
+            "--provider".into(),
+            "meta".into(),
             "--model".into(),
             model.into(),
             // Headless turns must never block on an approval prompt.
@@ -272,6 +278,8 @@ mod tests {
             vec![
                 "exec".to_string(),
                 "--json".to_string(),
+                "--provider".to_string(),
+                "meta".to_string(),
                 "--model".to_string(),
                 // The frontend's routing qualifier is stripped.
                 "muse-spark-1.3".to_string(),

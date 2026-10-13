@@ -26,10 +26,11 @@ test('InsightsPanel fetches the get_insights_summary Tauri command', () => {
   assert.match(tauriApi, /invokeTauri\('get_insights_summary'\)/)
 })
 
-test('InsightsPanel hides during cold start until at least 5 runs', () => {
+test('InsightsPanel shows a cold-start hint until at least 5 runs', () => {
   assert.match(insightsPanel, /COLD_START_MIN_RUNS = 5/)
   assert.match(insightsPanel, /summary\.totalRuns < COLD_START_MIN_RUNS/)
-  assert.match(insightsPanel, /return null/)
+  assert.match(insightsPanel, /insights-cold-start/)
+  assert.match(insightsPanel, /crossRun\.coldStart/)
 })
 
 test('InsightsPanel renders a combo leaderboard when populated', () => {

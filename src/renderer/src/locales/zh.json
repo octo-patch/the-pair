@@ -17,7 +17,6 @@
     "deleting": "删除中...",
     "loading": "加载中...",
     "refresh": "刷新",
-    "chars": "字符",
     "turn": "轮次",
     "idle": "空闲",
     "paused": "已暂停",
@@ -40,7 +39,8 @@
     "stop": "停止",
     "resume": "继续",
     "pause": "暂停",
-    "dismiss": "关闭"
+    "dismiss": "关闭",
+    "back": "返回"
   },
   "status": {
     "Idle": "空闲",
@@ -130,7 +130,8 @@
       "runs": "运行数",
       "success": "成功率",
       "avgIter": "平均迭代",
-      "avgTokens": "平均 Token"
+      "avgTokens": "平均 Token",
+      "coldStart": "运行记录还在积累中 — 累计 {{min}} 次运行后显示排行榜（目前 {{count}} 次）。"
     }
   },
   "emptyState": {
@@ -236,7 +237,8 @@
     "deleteDesc": "这将永久移除 Pair、其快照和可恢复的会话。",
     "deleteWorktreeNote": "其工作树也会被移除：未提交的改动会保存到 git stash，Pair 的提交保留在其 the-pair/… 分支上。",
     "deleteFailed": "无法删除 Pair：{{error}}",
-    "presetTaskMissing": "开始前，请将预设模板中的占位文字替换为你的任务。"
+    "presetTaskMissing": "开始前，请将预设模板中的占位文字替换为你的任务。",
+    "pickDirectory": "选择目录"
   },
   "pickers": {
     "mentorLabel": "导师",

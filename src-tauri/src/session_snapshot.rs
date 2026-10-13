@@ -1393,6 +1393,11 @@ pub async fn restore_session(
         let mut contexts = spawner.pair_contexts.lock().map_err(|e| e.to_string())?;
         contexts.insert(pair.pair_id.clone(), context);
     }
+    // Restore must supersede any turn still live in this process: the restored
+    // context carries the snapshot's old generation, so bump it past the live
+    // turn's (and kill that turn's processes) or both could complete.
+    spawner.bump_run_generation(&pair.pair_id);
+    spawner.stop_pair_processes(&pair.pair_id);
 
     let mut updated_snapshot = snapshot.clone();
     updated_snapshot.provider_sessions = SnapshotProcessContext {
@@ -1409,6 +1414,24 @@ pub async fn restore_session(
         let _guard = lock.lock().unwrap_or_else(|e| e.into_inner());
         upsert_snapshot_record(&app, &updated_snapshot)?;
     }
+
+    // Seed the session-usage baseline from the snapshot's last recorded
+    // per-role totals so a Session-scope provider's first resumed turn
+    // reports only its own share, not the whole thread total.
+    let mentor_usage = last_token_usage_for_role(&snapshot.messages, MessageSender::Mentor);
+    let executor_usage = last_token_usage_for_role(&snapshot.messages, MessageSender::Executor);
+    crate::process_spawner::seed_session_usage_baselines(
+        snapshot
+            .provider_sessions
+            .mentor_session_id
+            .as_deref()
+            .map(|sid| (sid, mentor_usage.as_ref())),
+        snapshot
+            .provider_sessions
+            .executor_session_id
+            .as_deref()
+            .map(|sid| (sid, executor_usage.as_ref())),
+    );
 
     let should_resume = input.continue_run
         && !matches!(

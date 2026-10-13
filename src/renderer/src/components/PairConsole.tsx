@@ -5,6 +5,7 @@ import { AnimatePresence } from 'framer-motion'
 import { cn, extractErrorMessage, formatIterations } from '../lib/utils'
 import { usePairStore, type Message, type Pair, type TurnCard } from '../store/usePairStore'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
+import { ConfirmModal } from './ui/ConfirmModal'
 import { MessageFilterBar } from './MessageFilterBar'
 import { GlassButton } from './ui/GlassButton'
 import { isPairActive } from '../lib/pairStatus'
@@ -63,6 +64,7 @@ function PairConsole({ pair, className }: PairConsoleProps): React.ReactNode {
   const [stopError, setStopError] = useState<{ cardId: string; message: string } | null>(null)
   const [fileContexts, setFileContexts] = useState<FileContexts>(new Map())
   const [skillContexts, setSkillContexts] = useState<SkillContexts>(new Map())
+  const [confirmClear, setConfirmClear] = useState(false)
 
   const handleFileSelect = useCallback((path: string, content: string): void => {
     setFileContexts((prev) => {
@@ -186,7 +188,9 @@ function PairConsole({ pair, className }: PairConsoleProps): React.ReactNode {
   }, [deduplicatedConsoleMessages, dropCountByMessageId, pair.maxIterations, t])
 
   const handleClearMessages = (): void => {
-    setMessages(pair.id, [])
+    // Same confirm as the toolbar/palette path (App.tsx) — never wipe a
+    // transcript from a single misclick.
+    setConfirmClear(true)
   }
 
   const submitTask = async (): Promise<void> => {
@@ -637,6 +641,18 @@ function PairConsole({ pair, className }: PairConsoleProps): React.ReactNode {
           dependency={`${consoleMessages.length}-${messageFilter}-${viewingRun?.id ?? 'live'}`}
         />
       </div>
+      <ConfirmModal
+        isOpen={confirmClear}
+        title={t('chrome.clearSessionConfirmTitle', { name: pair.name })}
+        message={t('chrome.clearSessionConfirmMessage')}
+        confirmLabel={t('chrome.clearSessionConfirmAction')}
+        cancelLabel={t('common.cancel')}
+        onConfirm={() => {
+          setMessages(pair.id, [])
+          setConfirmClear(false)
+        }}
+        onCancel={() => setConfirmClear(false)}
+      />
     </div>
   )
 }

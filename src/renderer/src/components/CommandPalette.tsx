@@ -124,6 +124,7 @@ export function CommandPalette({
         aria-modal="true"
         aria-label={t('palette.title')}
         data-testid="command-palette"
+        onKeyDown={handleKeyDown}
         className="shell-card w-full max-w-[560px] overflow-hidden bg-popover"
       >
         <div className="flex items-center gap-2 border-b border-border px-3">
@@ -133,7 +134,6 @@ export function CommandPalette({
           <input
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            onKeyDown={handleKeyDown}
             placeholder={t('palette.placeholder')}
             aria-label={t('palette.placeholder')}
             data-testid="command-palette-input"

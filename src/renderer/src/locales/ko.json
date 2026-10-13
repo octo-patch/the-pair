@@ -17,7 +17,6 @@
     "deleting": "삭제 중...",
     "loading": "로딩 중...",
     "refresh": "새로 고침",
-    "chars": "자",
     "turn": "턴",
     "idle": "대기 중",
     "paused": "일시 중지됨",
@@ -40,7 +39,8 @@
     "stop": "중지",
     "resume": "재개",
     "pause": "일시정지",
-    "dismiss": "닫기"
+    "dismiss": "닫기",
+    "back": "뒤로"
   },
   "chrome": {
     "title": "The Pair",
@@ -110,7 +110,8 @@
       "runs": "실행 수",
       "success": "성공률",
       "avgIter": "평균 반복",
-      "avgTokens": "평균 토큰"
+      "avgTokens": "평균 토큰",
+      "coldStart": "실행 기록이 아직 쌓이는 중입니다 — {{min}}건의 실행이 기록되면 리더보드가 표시됩니다 (현재 {{count}}건)."
     },
     "stats": {
       "total": "모든 페어",
@@ -226,7 +227,8 @@
     "deleteDesc": "페어, 해당 스냅샷 및 복구 가능한 세션이 영구적으로 제거됩니다.",
     "deleteWorktreeNote": "워크트리도 제거됩니다. 커밋되지 않은 변경 사항은 git stash에 저장되고, 페어의 커밋은 the-pair/… 브랜치에 남습니다.",
     "deleteFailed": "페어를 삭제하지 못했습니다: {{error}}",
-    "presetTaskMissing": "시작하기 전에 프리셋 템플릿의 자리 표시자를 작업 내용으로 바꾸세요."
+    "presetTaskMissing": "시작하기 전에 프리셋 템플릿의 자리 표시자를 작업 내용으로 바꾸세요.",
+    "pickDirectory": "디렉터리 선택"
   },
   "pickers": {
     "mentorLabel": "멘토",

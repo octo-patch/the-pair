@@ -137,12 +137,17 @@ export function ModelPicker({
   onChange,
   role,
   variant = 'inline',
-  dropUp = false,
+  dropUp,
   reasoningEffort,
   onReasoningEffortChange
 }: ModelPickerProps): React.ReactNode {
   const { t } = useTranslation()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [autoDropUp, setAutoDropUp] = useState(false)
+  // Flip up when the trigger sits in the lower half of the viewport and the
+  // caller didn't pin a direction: the list lives inside overflow-clipped
+  // modals/panels, so opening downward there hides most of it.
+  const effectiveDropUp = dropUp ?? autoDropUp
   const [searchQuery, setSearchQuery] = useState('')
   const [recentModelIds] = useState<string[]>(() => getRecentModelIds(role))
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -339,7 +344,13 @@ export function ModelPicker({
         <div className="relative" ref={dropdownRef} onKeyDown={handleDropdownKeyDown}>
           <button
             type="button"
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            onClick={(e) => {
+              if (!isDropdownOpen) {
+                const rect = e.currentTarget.getBoundingClientRect()
+                setAutoDropUp(rect.top > window.innerHeight / 2)
+              }
+              setIsDropdownOpen(!isDropdownOpen)
+            }}
             aria-expanded={isDropdownOpen}
             className={cn(
               'flex w-full items-center gap-2 border px-2 py-1.5 text-left rounded-md transition-colors cursor-pointer font-mono text-[12px]',
@@ -379,7 +390,7 @@ export function ModelPicker({
             <div
               className={cn(
                 'absolute left-0 right-0 z-50 overflow-hidden border border-border bg-popover rounded-md',
-                dropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                effectiveDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
               )}
             >
               <div className="p-1.5 border-b border-border">

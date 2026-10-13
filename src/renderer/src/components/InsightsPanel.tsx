@@ -45,9 +45,25 @@ export function InsightsPanel({ className }: InsightsPanelProps): React.ReactNod
     }
   }, [])
 
-  // Cold start: stay hidden until the user has enough run history.
+  // Cold start: don't show an empty leaderboard, but never render a blank
+  // section either — tell the user what unlocks it.
   if (!summary || summary.totalRuns < COLD_START_MIN_RUNS) {
-    return null
+    return (
+      <section
+        data-testid="insights-cold-start"
+        className={cn('flex flex-col gap-2 px-1 py-1', className)}
+      >
+        <h2 className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          {t('dashboard.crossRun.title')}
+        </h2>
+        <p className="text-[13px] text-muted-foreground">
+          {t('dashboard.crossRun.coldStart', {
+            min: COLD_START_MIN_RUNS,
+            count: summary?.totalRuns ?? 0
+          })}
+        </p>
+      </section>
+    )
   }
 
   return (

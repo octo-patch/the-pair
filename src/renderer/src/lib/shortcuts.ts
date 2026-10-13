@@ -32,6 +32,17 @@ export function matchesShortcut(e: KeyboardEvent, shortcut: ShortcutDef): boolea
   return true
 }
 
+/**
+ * True when a shortcut should fire even while a text field has focus: it
+ * carries a command/control modifier, so it cannot be mistaken for typing.
+ * Bare-key shortcuts (letters, `?`) stay suppressed inside inputs.
+ */
+export function isCommandShortcut(e: KeyboardEvent, shortcut: ShortcutDef): boolean {
+  return (
+    e.metaKey || e.ctrlKey || shortcut.modifiers.some((m) => ['meta', 'cmd', 'ctrl'].includes(m))
+  )
+}
+
 export function isInputFocused(e: KeyboardEvent): boolean {
   const target = e.target as HTMLElement
   if (!target) return false

@@ -63,10 +63,10 @@ function PairCard({
         <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-foreground">
           {pair.name}
         </span>
-        <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           {pair.status === 'Paused' ? (
-            <span
-              role="button"
+            <button
+              type="button"
               aria-label={t('common.resume', { defaultValue: 'Resume' })}
               onClick={(e) => {
                 e.stopPropagation()
@@ -75,10 +75,10 @@ function PairCard({
               className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <Play size={12} />
-            </span>
+            </button>
           ) : isPairActive(pair.status) ? (
-            <span
-              role="button"
+            <button
+              type="button"
               aria-label={t('common.pause', { defaultValue: 'Pause' })}
               onClick={(e) => {
                 e.stopPropagation()
@@ -87,10 +87,10 @@ function PairCard({
               className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               <Pause size={12} />
-            </span>
+            </button>
           ) : null}
-          <span
-            role="button"
+          <button
+            type="button"
             aria-label={t('common.delete', { defaultValue: 'Delete' })}
             onClick={(e) => {
               e.stopPropagation()
@@ -103,7 +103,7 @@ function PairCard({
             )}
           >
             <Trash2 size={12} />
-          </span>
+          </button>
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -174,7 +174,7 @@ export function PairsHub({
             <div className="flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
               <span>{t('startup.consoleEmptyTitle')}</span>
             </div>
-            <div className="shell-card flex flex-col gap-2 p-3 font-mono text-[12px] leading-relaxed">
+            <div className="shell-card flex flex-col gap-2 p-3 text-[12px] leading-relaxed">
               <div className="flex items-baseline gap-2">
                 <span aria-hidden className="role-mentor select-none">
                   ●

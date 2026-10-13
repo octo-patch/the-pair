@@ -338,6 +338,8 @@ export function CreatePairModal({ isOpen, onClose }: CreatePairModalProps): Reac
                 size="sm"
                 onClick={handleSelectDirectory}
                 icon={<FolderOpen size={13} />}
+                aria-label={t('modals.pickDirectory')}
+                title={t('modals.pickDirectory')}
               >
                 {''}
               </GlassButton>

@@ -529,20 +529,27 @@ impl MessageBroker {
             if role == "mentor" {
                 // A mentor turn resumed from AwaitingHumanReview is always a
                 // re-plan: the gate fires on planning turns (never review), so a
-                // rejected plan should re-plan (Mentoring), not review.
-                let is_planning_turn = matches!(
+                // rejected plan should re-plan (Mentoring), not review. Only a
+                // genuinely new run (Idle/Finished/Error, or no executor work
+                // yet) resets the iteration budget — a re-plan mid-run must
+                // keep counting, or rejecting a plan restarts the budget.
+                let is_new_run = matches!(
                     previous_status,
-                    PairStatus::Idle
-                        | PairStatus::Finished
-                        | PairStatus::Error
-                        | PairStatus::AwaitingHumanReview
-                ) || state.iteration == 0;
+                    PairStatus::Idle | PairStatus::Finished | PairStatus::Error
+                );
+                let is_planning_turn = is_new_run
+                    || previous_status == PairStatus::AwaitingHumanReview
+                    || state.iteration == 0;
 
                 if is_planning_turn {
-                    state.iteration = 1;
+                    if is_new_run {
+                        state.iteration = 1;
+                        state.latest_acceptance = None;
+                        state.acceptance_history.clear();
+                    } else if state.iteration == 0 {
+                        state.iteration = 1;
+                    }
                     state.status = PairStatus::Mentoring;
-                    state.latest_acceptance = None;
-                    state.acceptance_history.clear();
                     state.mentor.status = PairStatus::Executing;
                     Self::update_both_activities(
                         &mut state.mentor_activity,
@@ -1321,6 +1328,27 @@ mod tests {
         let state = broker.get_state("pair-1").expect("pair state should exist");
         assert!(state.acceptance_history.is_empty());
         assert!(state.latest_acceptance.is_none());
+    }
+
+    #[test]
+    fn prepare_run_replan_after_plan_gate_rejection_keeps_the_iteration_budget() {
+        // Rejecting a gated plan at iteration 4 re-plans; it must not reset
+        // the counter to 1 (that would restart the budget and clobber the
+        // acceptance history keyed by iteration).
+        let broker = MessageBroker::new();
+        broker
+            .initialize_pair("pair-1", sample_input(), None)
+            .unwrap();
+        let mut state = pair_state(PairStatus::AwaitingHumanReview, 4);
+        state.acceptance_history = vec![acceptance(4, "kept")];
+        broker.restore_state(state).unwrap();
+
+        broker.prepare_run("pair-1", "mentor", Arc::new(Mutex::new(HashMap::new())));
+
+        let state = broker.get_state("pair-1").expect("pair state should exist");
+        assert_eq!(state.status, PairStatus::Mentoring);
+        assert_eq!(state.iteration, 4);
+        assert_eq!(state.acceptance_history.len(), 1);
     }
 
     #[test]
