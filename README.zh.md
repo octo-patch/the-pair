@@ -124,11 +124,11 @@ Pair 详情 — 审查
 
 从 [GitHub Releases](https://github.com/timwuhaotian/the-pair/releases) 下载最新版本：
 
-| 平台        | 文件                           |
-| ----------- | ------------------------------ |
-| **macOS**   | `the-pair-{version}.zip`       |
-| **Windows** | `the-pair-{version}-setup.exe` |
-| **Linux**   | `the-pair-{version}.AppImage`  |
+| 平台        | 文件                                                                  |
+| ----------- | --------------------------------------------------------------------- |
+| **macOS**   | `the-pair-{version}.zip`                                              |
+| **Windows** | `the-pair-{version}-setup.exe`                                        |
+| **Linux**   | `the-pair-{version}.AppImage.tar.gz` (extract, then run the AppImage) |
 
 ### 从源码构建
 

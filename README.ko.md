@@ -124,11 +124,11 @@ _Mentor와 Executor 에이전트의 실시간 협업 과정을 지켜보세요_
 
 [GitHub Releases](https://github.com/timwuhaotian/the-pair/releases)에서 최신 릴리스를 다운로드하세요:
 
-| 플랫폼      | 파일                           |
-| ----------- | ------------------------------ |
-| **macOS**   | `the-pair-{version}.zip`       |
-| **Windows** | `the-pair-{version}-setup.exe` |
-| **Linux**   | `the-pair-{version}.AppImage`  |
+| 플랫폼      | 파일                                                                  |
+| ----------- | --------------------------------------------------------------------- |
+| **macOS**   | `the-pair-{version}.zip`                                              |
+| **Windows** | `the-pair-{version}-setup.exe`                                        |
+| **Linux**   | `the-pair-{version}.AppImage.tar.gz` (extract, then run the AppImage) |
 
 ### 소스에서 빌드
 

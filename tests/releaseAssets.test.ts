@@ -45,20 +45,20 @@ test('collectReleaseAsset copies the Windows installer into a normalized release
   assert.equal(await readFile(result.destination, 'utf8'), 'windows-exe')
 })
 
-test('collectReleaseAsset copies the Linux AppImage into a normalized release name', async () => {
+test('collectReleaseAsset rejects linux (only the updater tarball ships)', async () => {
   const { root } = await createBundleFile(
     'appimage/The Pair_1.1.6_amd64.AppImage',
     'linux-appimage'
   )
 
-  const outDir = join(root, 'dist')
-  const result = collectReleaseAsset({
-    platform: 'linux',
-    bundleRoot: root,
-    outDir,
-    version: '1.1.6'
-  })
-
-  assert.equal(result.destination, join(outDir, 'the-pair-1.1.6.AppImage'))
-  assert.equal(await readFile(result.destination, 'utf8'), 'linux-appimage')
+  assert.throws(
+    () =>
+      collectReleaseAsset({
+        platform: 'linux',
+        bundleRoot: root,
+        outDir: join(root, 'dist'),
+        version: '1.1.6'
+      }),
+    /Unsupported platform: linux/
+  )
 })

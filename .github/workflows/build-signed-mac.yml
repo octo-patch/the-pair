@@ -281,8 +281,10 @@ jobs:
             security delete-keychain build.keychain 2>/dev/null || true
           fi
 
+      # Windows only: Linux ships just the updater .AppImage.tar.gz from the
+      # next step, macOS gets its .zip from the packaging step below.
       - name: Collect release asset
-        if: matrix.platform != 'macos'
+        if: matrix.platform == 'windows'
         run: node scripts/release-assets.mjs --platform ${{ matrix.platform }} --bundle-root ${{ matrix.bundle-root }} --out-dir dist --version "${{ env.VERSION }}"
 
       - name: Collect updater assets

@@ -55,16 +55,16 @@ Found under `Membership details` in your developer account.
 
 Configure these in `Settings → Secrets and variables → Actions`:
 
-| Secret                         | What it is                                                              | How to get it                                                                                                                       |
-| ------------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `MACOS_SIGNING_IDENTITY`       | Exact signing identity string used by Tauri as `APPLE_SIGNING_IDENTITY` | Run `security find-identity -v -p codesigning` after installing the certificate, then copy the `Developer ID Application: ...` line |
-| `MACOS_CERTIFICATE_P12_BASE64` | Base64-encoded `.p12` export of your Developer ID Application cert      | `base64 -i /path/to/developer-id.p12 \| pbcopy` on macOS                                                                            |
-| `MACOS_CERTIFICATE_PASSWORD`   | Password you chose when exporting the `.p12`                            | You set this during export                                                                                                          |
-| `TAURI_SIGNING_PRIVATE_KEY`    | Tauri updater signing private key, stored as file contents or a path    | Generate it with `npm run tauri signer generate -- -w ~/.tauri/the-pair.key` and copy the private key into the secret                 |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password for the updater private key, if you generated one         | Use the same password you passed to `tauri signer generate`                                                                          |
-| `APPLE_ID`                     | Apple Account email used for notarization                               | Your Apple Developer account email                                                                                                  |
-| `APPLE_APP_SPECIFIC_PASSWORD`  | App-specific password for notarization                                  | Go to `account.apple.com` → `Sign-In and Security` → `App-Specific Passwords`                                                       |
-| `APPLE_TEAM_ID`                | 10-character Apple team identifier                                      | `developer.apple.com` → `Membership details`                                                                                        |
+| Secret                               | What it is                                                              | How to get it                                                                                                                       |
+| ------------------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `MACOS_SIGNING_IDENTITY`             | Exact signing identity string used by Tauri as `APPLE_SIGNING_IDENTITY` | Run `security find-identity -v -p codesigning` after installing the certificate, then copy the `Developer ID Application: ...` line |
+| `MACOS_CERTIFICATE_P12_BASE64`       | Base64-encoded `.p12` export of your Developer ID Application cert      | `base64 -i /path/to/developer-id.p12 \| pbcopy` on macOS                                                                            |
+| `MACOS_CERTIFICATE_PASSWORD`         | Password you chose when exporting the `.p12`                            | You set this during export                                                                                                          |
+| `TAURI_SIGNING_PRIVATE_KEY`          | Tauri updater signing private key, stored as file contents or a path    | Generate it with `npm run tauri signer generate -- -w ~/.tauri/the-pair.key` and copy the private key into the secret               |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password for the updater private key, if you generated one              | Use the same password you passed to `tauri signer generate`                                                                         |
+| `APPLE_ID`                           | Apple Account email used for notarization                               | Your Apple Developer account email                                                                                                  |
+| `APPLE_APP_SPECIFIC_PASSWORD`        | App-specific password for notarization                                  | Go to `account.apple.com` → `Sign-In and Security` → `App-Specific Passwords`                                                       |
+| `APPLE_TEAM_ID`                      | 10-character Apple team identifier                                      | `developer.apple.com` → `Membership details`                                                                                        |
 
 **Notes:**
 
@@ -97,7 +97,7 @@ The release workflow now publishes:
 
 - macOS: `the-pair-{version}.zip`
 - Windows: `the-pair-{version}-setup.exe`
-- Linux: `the-pair-{version}.AppImage`
+- Linux: `the-pair-{version}.AppImage.tar.gz` (extract, then run the AppImage)
 
 ## Manual Notarization Check
 

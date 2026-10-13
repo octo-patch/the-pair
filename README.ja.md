@@ -124,11 +124,11 @@ _MentorとExecutorエージェントのリアルタイムコラボレーショ�
 
 [GitHub Releases](https://github.com/timwuhaotian/the-pair/releases)から最新リリースをダウンロード：
 
-| プラットフォーム | ファイル                       |
-| ---------------- | ------------------------------ |
-| **macOS**        | `the-pair-{version}.zip`       |
-| **Windows**      | `the-pair-{version}-setup.exe` |
-| **Linux**        | `the-pair-{version}.AppImage`  |
+| プラットフォーム | ファイル                                                              |
+| ---------------- | --------------------------------------------------------------------- |
+| **macOS**        | `the-pair-{version}.zip`                                              |
+| **Windows**      | `the-pair-{version}-setup.exe`                                        |
+| **Linux**        | `the-pair-{version}.AppImage.tar.gz` (extract, then run the AppImage) |
 
 ### ソースからビルド
 

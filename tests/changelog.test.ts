@@ -83,10 +83,10 @@ test('buildReleaseNotes puts the downloads table before the changelog section', 
   assert.ok(notes.startsWith('## Downloads\n'))
   assert.ok(notes.includes('`the-pair-2.8.2.zip`'))
   assert.ok(notes.includes('`the-pair-2.8.2-setup.exe`'))
-  assert.ok(notes.includes('`the-pair-2.8.2.AppImage`'))
+  assert.ok(notes.includes('`the-pair-2.8.2.AppImage.tar.gz`'))
   assert.ok(
     notes.includes(
-      '| **Linux** | `the-pair-2.8.2.AppImage` |\n\n### Fixed\n\n- Two point eight point two\n'
+      '| **Linux** | `the-pair-2.8.2.AppImage.tar.gz` (extract, then run the AppImage) |\n\n### Fixed\n\n- Two point eight point two\n'
     )
   )
   assert.ok(!notes.includes('# Changelog'))

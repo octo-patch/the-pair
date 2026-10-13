@@ -178,11 +178,11 @@ Live Execution
 
 Download the latest release from [GitHub Releases](https://github.com/timwuhaotian/the-pair/releases):
 
-| Platform    | File                           |
-| ----------- | ------------------------------ |
-| **macOS**   | `the-pair-{version}.zip`       |
-| **Windows** | `the-pair-{version}-setup.exe` |
-| **Linux**   | `the-pair-{version}.AppImage`  |
+| Platform    | File                                                                  |
+| ----------- | --------------------------------------------------------------------- |
+| **macOS**   | `the-pair-{version}.zip`                                              |
+| **Windows** | `the-pair-{version}-setup.exe`                                        |
+| **Linux**   | `the-pair-{version}.AppImage.tar.gz` (extract, then run the AppImage) |
 
 ### From Source
 

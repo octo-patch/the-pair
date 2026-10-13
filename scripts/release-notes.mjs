@@ -23,7 +23,7 @@ export function buildDownloadTable(version) {
     '|---|---|',
     `| **macOS** (Apple Silicon + Intel) | \`the-pair-${version}.zip\` |`,
     `| **Windows** | \`the-pair-${version}-setup.exe\` |`,
-    `| **Linux** | \`the-pair-${version}.AppImage\` |`
+    `| **Linux** | \`the-pair-${version}.AppImage.tar.gz\` (extract, then run the AppImage) |`
   ].join('\n')
 }
 

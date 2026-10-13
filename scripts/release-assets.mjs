@@ -13,12 +13,9 @@ const platformConfigs = {
     subdir: 'nsis',
     outputName: (version) => `the-pair-${version}-setup.exe`,
     patterns: [/-setup\.exe$/i, /\.exe$/i]
-  },
-  linux: {
-    subdir: 'appimage',
-    outputName: (version) => `the-pair-${version}.AppImage`,
-    patterns: [/\.AppImage$/i]
   }
+  // No linux entry: Linux releases ship only the updater .AppImage.tar.gz
+  // (scripts/release-updater-assets.mjs), which users extract and run.
 }
 
 function parseArgs(argv) {
@@ -108,7 +105,7 @@ function main() {
 
   if (!platform || !bundleRoot || !outDir || !version) {
     throw new Error(
-      'Usage: node scripts/release-assets.mjs --platform <macos|windows|linux> --bundle-root <path> --out-dir <path> --version <version>'
+      'Usage: node scripts/release-assets.mjs --platform <macos|windows> --bundle-root <path> --out-dir <path> --version <version>'
     )
   }
 
