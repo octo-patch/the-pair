@@ -1,7 +1,11 @@
 <!-- prettier-ignore -->
 <div align="center">
 
-<img src="./resources/logo-the-pair.png" alt="The Pair" width="128" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/app-icon-dark.svg" />
+  <source media="(prefers-color-scheme: light)" srcset="./docs/assets/app-icon-light.svg" />
+  <img src="./resources/logo-the-pair.png" alt="The Pair" width="128" />
+</picture>
 
 # The Pair
 

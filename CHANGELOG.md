@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.11.2] - 2026-10-14
+
+### Changed
+
+- **New app icon.** The orange two-robot mark is replaced with a monochrome double-check (✓✓) on a near-black rounded tile (plus a light counterpart) — one check per agent, for the cross-checked work the pair hands back. Source SVGs and regeneration steps live in `docs/assets/app-icon.md`; README headers now follow the system light/dark appearance.
+
 ## [2.11.1] - 2026-10-14
 
 Reliability and polish patch on top of the 2.11.0 shell: runaway turns now die instead of burning tokens forever, budget handoffs stop ping-ponging, session restore is race-free, and several provider CLI mismatches are corrected.
