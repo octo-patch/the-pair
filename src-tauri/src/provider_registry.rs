@@ -55,6 +55,7 @@ static OPENCODE_VARIANT_SYNTAX: ProbeCache<OpencodeVariantSyntax> =
     ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
 static PI_MAX_THINKING_LEVEL_SUPPORT: ProbeCache<bool> = ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
 static PI_NO_MCP_SUPPORT: ProbeCache<bool> = ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
+static KIRO_AGENT_ENGINE_SUPPORT: ProbeCache<bool> = ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
 static CODEX_REASONING_LEVELS: ProbeCache<Arc<CodexReasoningCatalog>> =
     ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
 static CODEX_SESSION_USAGE: ProbeCache<bool> = ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
@@ -357,6 +358,40 @@ pub(crate) fn pi_supports_no_mcp_flag() -> bool {
 
 fn pi_help_lists_no_mcp_flag(help_text: &str) -> bool {
     help_text.contains("--no-mcp")
+}
+
+/// Whether the installed `kiro-cli` accepts `--agent-engine <v1|v2|v3>` on
+/// `chat`.
+///
+/// kiro-cli now ships a V3 engine alongside V2 (still the default), and
+/// accepting the V3 startup offer persists `chat.agentEngine = v3`.
+/// The Pair's adapter is built for V2 semantics — above all the mentor's
+/// `--trust-tools=read,grep,glob`, whose V2 tool names match nothing under
+/// V3's exact internal ids (`read_file`, …), which would silently drop the
+/// read-only pre-approval. Pinning `--agent-engine v2` on every turn keeps
+/// the adapter stable regardless of the saved setting. CLIs without the flag
+/// (pre-V3) have no engine to drift to, so the probe keeps them flag-free.
+/// Probed from `kiro-cli chat --help` (once per binary, see `ProbeCache`).
+pub(crate) fn kiro_supports_agent_engine_flag() -> bool {
+    let Some(command_path) = which_binary("kiro-cli") else {
+        return false;
+    };
+
+    KIRO_AGENT_ENGINE_SUPPORT
+        .get_or_probe(&command_path, || {
+            capture_command_output_with_timeout(
+                &command_path,
+                &["chat", "--help"],
+                &homedir(),
+                CLI_PROBE_TIMEOUT,
+            )
+            .map(|help_text| kiro_help_lists_agent_engine(&help_text))
+        })
+        .unwrap_or(false)
+}
+
+fn kiro_help_lists_agent_engine(help_text: &str) -> bool {
+    help_text.contains("--agent-engine")
 }
 
 /// Reasoning levels the installed Codex advertises per model, keyed by slug.
@@ -1907,10 +1942,16 @@ fn parse_antigravity_model_lines(output: &str) -> Vec<DetectedModelOption> {
 /// `model/list`, which on 1.4.3 also lists `muse-spark-1.3-contributor` and
 /// `muse-spark-1.2-contributor`. Those are left out on purpose: their terms
 /// allow the content to be used for product improvement, which a pair should
-/// not opt into silently. These two ids are seeded and then unioned with
-/// whatever the user has configured, so a newer model appears as soon as they
-/// select it in Muse itself.
-const MUSE_SEED_MODELS: &[&str] = &["muse-spark-1.3", "muse-spark-1.2"];
+/// not opt into silently. The wonder line (2026-10-12) leads because Meta's
+/// catalog marks `muse-wonder-1.0` as the default coding model. These ids are
+/// seeded and then unioned with whatever the user has configured, so a newer
+/// model appears as soon as they select it in Muse itself.
+const MUSE_SEED_MODELS: &[&str] = &[
+    "muse-wonder-1.0",
+    "muse-wonder-full-1.0",
+    "muse-spark-1.3",
+    "muse-spark-1.2",
+];
 
 #[derive(Deserialize)]
 struct MuseSettings {
@@ -2951,7 +2992,15 @@ name = "bare table, not an alias"
         restore_env(&saved);
 
         let ids: Vec<&str> = models.iter().map(|m| m.model_id.as_str()).collect();
-        assert_eq!(ids, vec!["muse-spark-1.3", "muse-spark-1.2"]);
+        assert_eq!(
+            ids,
+            vec![
+                "muse-wonder-1.0",
+                "muse-wonder-full-1.0",
+                "muse-spark-1.3",
+                "muse-spark-1.2"
+            ]
+        );
         assert!(models.iter().all(|m| m.supports_pair_execution && m.runnable));
 
         fs::remove_dir_all(&home).ok();
@@ -2972,7 +3021,13 @@ name = "bare table, not an alias"
         let ids: Vec<&str> = models.iter().map(|m| m.model_id.as_str()).collect();
         assert_eq!(
             ids,
-            vec!["muse-spark-9.9", "muse-spark-1.3", "muse-spark-1.2"]
+            vec![
+                "muse-spark-9.9",
+                "muse-wonder-1.0",
+                "muse-wonder-full-1.0",
+                "muse-spark-1.3",
+                "muse-spark-1.2"
+            ]
         );
 
         fs::remove_dir_all(&home).ok();
@@ -2987,7 +3042,15 @@ name = "bare table, not an alias"
         restore_env(&saved);
 
         let ids: Vec<&str> = models.iter().map(|m| m.model_id.as_str()).collect();
-        assert_eq!(ids, vec!["muse-spark-1.3", "muse-spark-1.2"]);
+        assert_eq!(
+            ids,
+            vec![
+                "muse-spark-1.3",
+                "muse-wonder-1.0",
+                "muse-wonder-full-1.0",
+                "muse-spark-1.2"
+            ]
+        );
 
         fs::remove_dir_all(&home).ok();
     }
@@ -3559,6 +3622,18 @@ exit 0
         ));
         assert!(!pi_help_lists_no_mcp_flag(
             "  --thinking <level>   Set thinking level: off, minimal, low, medium, high, xhigh, max\n"
+        ));
+    }
+
+    #[test]
+    fn kiro_agent_engine_detection_reads_the_chat_help_text() {
+        // kiro-cli 2.31's `chat --help` carries the engine selector.
+        assert!(kiro_help_lists_agent_engine(
+            "  --agent-engine <v1|v2|v3>  Agent engine to use\n  --no-interactive\n"
+        ));
+        // Pre-V3 CLIs list neither the flag nor the engines.
+        assert!(!kiro_help_lists_agent_engine(
+            "  --no-interactive  Run chat without a TUI\n  --model <MODEL>\n"
         ));
     }
 

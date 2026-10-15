@@ -126,6 +126,11 @@ pub(crate) fn fallback_path_dirs(
             dirs.extend(nvm_default_bin_dir(home));
         }
 
+        // Kiro's macOS installer (cli.kiro.dev/install) drops the app bundle
+        // into /Applications without creating a `kiro-cli` symlink, so the
+        // binary is only reachable inside the bundle.
+        dirs.push(PathBuf::from("/Applications/Kiro CLI.app/Contents/MacOS"));
+
         dirs.push(PathBuf::from("/usr/bin"));
     }
 
@@ -835,7 +840,8 @@ mod tests {
         assert!(dirs.contains(&PathBuf::from("/Users/alex/.opencode/bin")));
         assert!(dirs.contains(&PathBuf::from("/Users/alex/.kimi-code/bin")));
         assert!(dirs.contains(&PathBuf::from("/Users/alex/.pi/agent/bin")));
-        assert_eq!(dirs.len(), 11);
+        assert!(dirs.contains(&PathBuf::from("/Applications/Kiro CLI.app/Contents/MacOS")));
+        assert_eq!(dirs.len(), 12);
     }
 
     #[test]
@@ -950,6 +956,18 @@ mod tests {
         assert!(nvm < position(Path::new("/usr/bin")));
 
         fs::remove_dir_all(&home).ok();
+    }
+
+    #[test]
+    fn fallback_dirs_include_the_kiro_app_bundle_only_off_windows() {
+        // Kiro's macOS installer never symlinks `kiro-cli` into PATH; the
+        // binary only exists inside the app bundle.
+        let bundle = Path::new("/Applications/Kiro CLI.app/Contents/MacOS");
+        let unix_dirs = fallback_path_dirs(None, None, None, false);
+        assert!(unix_dirs.contains(&bundle.to_path_buf()));
+
+        let windows_dirs = fallback_path_dirs(None, None, None, true);
+        assert!(!windows_dirs.contains(&bundle.to_path_buf()));
     }
 
     #[test]

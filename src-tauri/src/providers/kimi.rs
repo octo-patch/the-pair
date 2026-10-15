@@ -11,17 +11,23 @@ use serde_json::Value;
 /// kept the `-p` / `--output-format stream-json` / `--session <id>` /
 /// `--model <alias>` surface used by The Pair; argument order around `-p`
 /// is strict (the prompt value follows `-p` directly), but the Pair's
-/// invocation already follows that order. Re-checked against kimi-code 2.1.1
-/// (2026-09-26): same surface; `--session` is now `-S, --session [id]`.
+/// invocation already follows that order. Re-checked against kimi-code 2.2.0
+/// (2026-10-15): same surface; the stream still carries no token usage
+/// (`extract_token_usage` stays `None`), and failures still print `error: …`
+/// to stderr with exit 1.
 ///
 /// KNOWN LIMITATION: the Kimi mentor is NOT read-only at the CLI level.
 /// Prompt mode (`-p`) always uses the auto permission policy, so every tool,
-/// including file writes and shell, runs without approval. kimi-code 2.1.1
+/// including file writes and shell, runs without approval. kimi-code 2.2.0
 /// rejects each restricting flag alongside `-p` ("Cannot combine --prompt
-/// with --plan." / "--yolo." / "--auto."). There is no tool allowlist flag
+/// with --plan." / "--yolo." / "--auto."). Note the 2.2.0 flag meanings:
+/// `--yolo` is now "Ask When Needed" (routine edits auto-run, risky actions
+/// still ask) and `--auto` is "Never Ask". There is no tool allowlist flag
 /// either: `--agent`/`--agent-file` profiles cannot be combined with
 /// `--session`. Only the mentor role prompt keeps a Kimi mentor from editing
-/// the worktree.
+/// the worktree. (2.2.0 does persist the agent profile across `--session`
+/// resume, so an `--agent-file` bound on the first turn would stick — a
+/// possible future path to a read-only mentor.)
 ///
 /// Failures are not reported on stdout either. A failed prompt prints an
 /// `error: …` line to stderr and exits 1; the only stdout meta events are

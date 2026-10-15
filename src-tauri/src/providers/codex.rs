@@ -105,11 +105,19 @@ impl Provider for CodexProvider {
     fn extract_token_usage(&self, event: &Value) -> Option<TurnTokenUsage> {
         let usage = event.get("usage")?;
 
+        // codex emits `output_tokens` / `input_tokens` (verified live on
+        // 0.149.1); the `completion_tokens` / `prompt_tokens` lookups are
+        // robustness against schema drift, not fields codex sends today.
         let output_tokens = usage
             .get("completion_tokens")
             .and_then(|v| v.as_u64())
             .or_else(|| usage.get("output_tokens").and_then(|v| v.as_u64()))?;
 
+        // `input_tokens` is already the full prompt cost: `cached_input_tokens`
+        // and `cache_write_input_tokens` are subsets of it (Responses-API
+        // semantics; verified live on 0.149.1 — 31,632 input with 0 cached on
+        // a cold turn). Unlike Claude/Grok, the cache buckets must NOT be
+        // folded in on top or the prompt tokens double-count.
         let input_tokens = usage
             .get("prompt_tokens")
             .and_then(|v| v.as_u64())

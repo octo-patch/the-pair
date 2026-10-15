@@ -477,7 +477,8 @@ impl Provider for OpenCodeProvider {
     }
 
     fn extract_error_detail(&self, event: &Value) -> Option<String> {
-        // 2.x: {"type":"error","error":{"type":"provider.no-route","message":"…"}}
+        // 2.x: {"type":"error","error":{"type":"provider.no-route","message":"…",
+        //        "response":{"body":<raw upstream error>}}}
         // 1.x: {"type":"error","error":{"name":"…","data":{"message":"…"}}}
         if event.get("type").and_then(|v| v.as_str()) != Some("error") {
             return None;
@@ -489,13 +490,30 @@ impl Provider for OpenCodeProvider {
             .or_else(|| error.pointer("/data/message").and_then(|v| v.as_str()))
             .map(str::trim)
             .filter(|s| !s.is_empty());
+        // Since opencode 2.0.14+ the raw upstream error document rides in
+        // `error.response.body` (string or object); on HTTP-level provider
+        // failures the actionable detail lives there.
+        let body_detail = error
+            .pointer("/response/body")
+            .and_then(|body| {
+                body.as_str()
+                    .or_else(|| body.get("message").and_then(|v| v.as_str()))
+                    .or_else(|| body.pointer("/error/message").and_then(|v| v.as_str()))
+            })
+            .map(str::trim)
+            .filter(|s| !s.is_empty() && Some(*s) != message);
+        let message = match (message, body_detail) {
+            (Some(message), Some(body)) => Some(format!("{message} — {body}")),
+            (None, Some(body)) => Some(body.to_string()),
+            (message, None) => message.map(str::to_string),
+        };
         let kind = error
             .get("type")
             .or_else(|| error.get("name"))
             .and_then(|v| v.as_str());
         Some(match (kind, message) {
             (Some(kind), Some(message)) => format!("{kind}: {message}"),
-            (None, Some(message)) => message.to_string(),
+            (None, Some(message)) => message,
             (Some(kind), None) => kind.to_string(),
             (None, None) => error.to_string(),
         })
@@ -1112,5 +1130,46 @@ mod tests {
         let hyphenated = serde_json::json!({"type": "step-finish"});
         assert!(provider.clears_turn_error(&hyphenated));
         assert!(!provider.clears_turn_error(&v2));
+    }
+
+    #[test]
+    fn opencode_error_events_append_the_upstream_response_body() {
+        // Since 2.0.14+ an HTTP-level provider failure carries the raw
+        // upstream error in `error.response.body`; when it adds detail beyond
+        // the envelope message it is appended, and it stands in for a missing
+        // message entirely.
+        let provider = OpenCodeProvider;
+        let with_body = serde_json::json!({
+            "type": "error",
+            "error": {
+                "type": "api_error",
+                "message": "Request failed",
+                "status": 429,
+                "response": {"body": {"error": {"message": "rate limit exceeded for key …"}}}
+            }
+        });
+        assert_eq!(
+            provider.extract_error_detail(&with_body).as_deref(),
+            Some("api_error: Request failed — rate limit exceeded for key …")
+        );
+
+        let body_only = serde_json::json!({
+            "type": "error",
+            "error": {"type": "api_error", "response": {"body": "upstream said no"}}
+        });
+        assert_eq!(
+            provider.extract_error_detail(&body_only).as_deref(),
+            Some("api_error: upstream said no")
+        );
+
+        // A body that merely repeats the message is not duplicated.
+        let duplicate = serde_json::json!({
+            "type": "error",
+            "error": {"type": "api_error", "message": "same", "response": {"body": "same"}}
+        });
+        assert_eq!(
+            provider.extract_error_detail(&duplicate).as_deref(),
+            Some("api_error: same")
+        );
     }
 }

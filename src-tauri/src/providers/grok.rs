@@ -100,10 +100,12 @@ impl Provider for GrokProvider {
 
         let (usage_obj, is_final) = match event_type {
             // `result` is the terminal line and carries the turn's full spend.
-            // On a failed turn the object is present but every bucket is 0 —
-            // the Messages API has no marker for "unknown", so grok emits zeros
-            // (verified 1.0.44). Treating those as Final would clobber the
-            // tokens already accumulated from the `assistant` events.
+            // On a failed turn — and on a successful turn whose usage ledger
+            // went missing — the object is present but every bucket is 0: the
+            // Messages API has no marker for "unknown", so grok emits zeros
+            // (verified 1.0.44; the bundled guide says read an all-zero usage
+            // as "unknown", not "free"). Treating those as Final would clobber
+            // the tokens already accumulated from the `assistant` events.
             "result" => {
                 if event.get("is_error").and_then(|v| v.as_bool()) == Some(true) {
                     return None;
@@ -135,6 +137,13 @@ impl Provider for GrokProvider {
                         .unwrap_or(0)
             },
         );
+
+        // An all-zero terminal usage means "unknown", not "free" (see the
+        // `result` arm above); keep the live total accumulated from the
+        // `assistant` events instead of publishing a final zero.
+        if is_final && output_tokens == 0 && input_tokens.unwrap_or(0) == 0 {
+            return None;
+        }
 
         Some(TurnTokenUsage {
             output_tokens,
@@ -494,6 +503,35 @@ mod tests {
             }
         });
         assert!(provider.extract_token_usage(&failed).is_none());
+    }
+
+    #[test]
+    fn grok_ignores_an_all_zero_usage_on_a_successful_result() {
+        // The Messages format has no incompleteness marker: when the turn's
+        // usage ledger is missing even a successful `result` falls back to
+        // zeros, which the guide says to read as "unknown", not "free".
+        let provider = GrokProvider;
+        let unknown = json!({
+            "type": "result",
+            "subtype": "success",
+            "is_error": false,
+            "session_id": "abc123",
+            "usage": {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cache_read_input_tokens": 0,
+                "cache_creation_input_tokens": 0
+            }
+        });
+        assert!(provider.extract_token_usage(&unknown).is_none());
+
+        // A live per-message usage of zero is not a terminal clobber and is
+        // still reported.
+        let live_zero = json!({
+            "type": "assistant",
+            "message": {"role": "assistant", "content": [], "usage": {"input_tokens": 0, "output_tokens": 0}}
+        });
+        assert!(provider.extract_token_usage(&live_zero).is_some());
     }
 
     #[test]

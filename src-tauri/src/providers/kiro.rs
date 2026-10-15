@@ -13,9 +13,12 @@ use serde_json::Value;
 /// from kiro-cli 2.26.1, which fixed `--model` being ignored by
 /// `--no-interactive` runs. Unknown ids are not rejected: V2 passes them to the
 /// backend and V3 warns on stderr and keeps the account default (kiro.dev
-/// docs, re-checked against kiro-cli 2.28.0 on 2026-10-06). Headless
-/// `--agent-engine v2 --output-format stream-json` (v2 is now the default
-/// engine) is available but its event format is undocumented, so the
+/// docs, re-checked against kiro-cli 2.28.0 on 2026-10-06). The CLI now also
+/// carries a V3 engine alongside V2; the turn command pins
+/// `--agent-engine v2` when the flag exists, because V3's tool-id names break
+/// the mentor's `--trust-tools` allowlist (see
+/// `kiro_supports_agent_engine_flag`). Headless `--output-format stream-json`
+/// is available on both engines but its event format is undocumented, so the
 /// plain-text transport is kept; switching to the structured stream would
 /// enable session-id capture and token usage, neither of which surface today.
 ///
@@ -83,7 +86,20 @@ impl Provider for KiroProvider {
         } else {
             "--trust-all-tools".to_string()
         };
-        let mut args: Vec<String> = vec!["chat".into(), "--no-interactive".into(), trust];
+        let mut args: Vec<String> = vec!["chat".into(), "--no-interactive".into()];
+
+        // Pin the V2 engine when the CLI supports pinning (see
+        // `kiro_supports_agent_engine_flag`; the probe keys on the help text,
+        // not the version). A user's V3 startup offer persists
+        // `chat.agentEngine = v3`, and V3 matches `--trust-tools` against
+        // exact internal tool ids that the mentor's V2 names never match —
+        // silently dropping the read-only pre-approval below.
+        if crate::provider_registry::kiro_supports_agent_engine_flag() {
+            args.push("--agent-engine".into());
+            args.push("v2".into());
+        }
+
+        args.push(trust);
 
         // Pairs saved before 2.8.1 may hold a whole `--list-models` table row
         // as their model id. Kiro forwards an unknown id to the backend rather
@@ -192,6 +208,37 @@ mod tests {
         assert!(command.last_message_path.is_none());
         // Prompt is the last positional arg.
         assert_eq!(command.args.last().unwrap(), "do the work");
+    }
+
+    #[test]
+    fn kiro_pins_the_v2_engine_when_the_cli_supports_it() {
+        // `--agent-engine` arrives with the V3 engine (kiro-cli 2.31); older
+        // CLIs must not receive the unknown flag. The pin is decided by the
+        // same probe the command builder uses.
+        let provider = KiroProvider;
+        let command = provider.build_turn_command(&ProviderTurnRequest {
+            provider_kind: ProviderKind::Kiro,
+            model: "claude-sonnet-4.5",
+            session_id: None,
+            role: "executor",
+            pair_id: "pair-1",
+            message: "do the work",
+            reasoning_effort: None,
+        });
+        let pin_idx = command.args.iter().position(|a| a == "--agent-engine");
+        if crate::provider_registry::kiro_supports_agent_engine_flag() {
+            let pin_idx = pin_idx.expect("pinning CLI should carry --agent-engine");
+            assert_eq!(command.args[pin_idx + 1], "v2");
+            // The pin sits before the trust flags so it always applies.
+            let trust_idx = command
+                .args
+                .iter()
+                .position(|a| a.starts_with("--trust"))
+                .expect("trust flag");
+            assert!(pin_idx < trust_idx);
+        } else {
+            assert!(pin_idx.is_none());
+        }
     }
 
     #[test]

@@ -11,7 +11,11 @@ use serde_json::Value;
 ///
 /// Uses `muse exec --json`, which emits one JSONL envelope per line:
 /// `{schema_version, id, stream{kind,id}, sequence, payload_type, payload}`.
-/// Verified against Muse Code 1.4.0 (2026-09-26; first integrated on 1.0.3).
+/// Verified against Muse Code 1.4.0 (2026-09-26; first integrated on 1.0.3)
+/// and re-checked against 1.4.8 (2026-10-15): the `run.terminal.*` payload
+/// still carries the reply in `payload.text`, and `exec --json` still emits
+/// no token usage on stdout (usage exists only in the persisted session log
+/// under `~/.local/share/muse/sessions`, which the Pair does not read).
 ///
 /// Two behaviours to know:
 ///
@@ -38,9 +42,12 @@ pub struct MuseProvider;
 /// using xhigh" and runs at `xhigh` — so it is not offered.
 const MUSE_REASONING_EFFORTS: &[&str] = &["minimal", "low", "medium", "high", "xhigh"];
 
-/// muse-spark-1.3 and later accept `max` on top of the shared ladder. Anything
-/// unknown falls back to the shared ladder only: offering a subset narrows the
-/// picker, offering a level a model rejects fails the turn.
+/// muse-spark-1.3 and later accept `max` on top of the shared ladder, and the
+/// wonder line (muse-wonder-1.0 / muse-wonder-full-1.0, released 2026-10-12)
+/// declares `max` from day one despite its 1.0 suffix (Meta's own model
+/// catalog lists `minimal…max` for both). Anything unknown falls back to the
+/// shared ladder only: offering a subset narrows the picker, offering a level
+/// a model rejects fails the turn.
 const MUSE_MAX_EFFORT_FROM_MINOR: u32 = 3;
 
 /// The minor version encoded in a model id (`muse-spark-1.3-contributor` → 3).
@@ -55,12 +62,18 @@ fn muse_model_minor(model_id: &str) -> Option<u32> {
         })
 }
 
+fn muse_supports_max_effort(model_id: &str) -> bool {
+    let id = model_id.strip_prefix("muse/").unwrap_or(model_id);
+    id.contains("wonder")
+        || muse_model_minor(id).is_some_and(|minor| minor >= MUSE_MAX_EFFORT_FROM_MINOR)
+}
+
 fn muse_effort_levels(model_id: &str) -> Vec<String> {
     let mut levels: Vec<String> = MUSE_REASONING_EFFORTS
         .iter()
         .map(|level| level.to_string())
         .collect();
-    if muse_model_minor(model_id).is_some_and(|minor| minor >= MUSE_MAX_EFFORT_FROM_MINOR) {
+    if muse_supports_max_effort(model_id) {
         levels.push("max".to_string());
     }
     levels
@@ -458,6 +471,28 @@ mod tests {
             MuseProvider.reasoning_effort_levels("muse-spark-latest"),
             Some(levels)
         );
+    }
+
+    #[test]
+    fn wonder_line_offers_max_from_day_one() {
+        // Meta's catalog lists minimal…max for both wonder models even though
+        // their version suffix is 1.0, which the spark-version gate alone
+        // would read as "no max".
+        for model in [
+            "muse-wonder-1.0",
+            "muse-wonder-full-1.0",
+            "muse/muse-wonder-1.0",
+        ] {
+            assert_eq!(
+                MuseProvider.reasoning_effort_levels(model),
+                Some(
+                    ["minimal", "low", "medium", "high", "xhigh", "max"]
+                        .iter()
+                        .map(|level| level.to_string())
+                        .collect::<Vec<_>>()
+                )
+            );
+        }
     }
 
     #[test]

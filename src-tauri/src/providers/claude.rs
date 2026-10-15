@@ -76,6 +76,12 @@ impl Provider for ClaudeProvider {
     }
 
     fn extract_token_usage(&self, event: &Value) -> Option<TurnTokenUsage> {
+        // `result.usage` covers only this invocation's own API calls (the
+        // event's `iterations` array), not a session running total — verified
+        // live on 2.1.300 with two `--resume`d `-p` turns: the second turn
+        // reported the session context as one fresh call (~49.7k input),
+        // not the accumulated sum (~99k). So the default `UsageScope::Turn`
+        // is correct and no baseline subtraction (codex-style) is needed.
         let event_type = event.get("type").and_then(|v| v.as_str())?;
 
         let (usage_obj, is_final) = match event_type {
