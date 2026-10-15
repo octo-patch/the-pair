@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.11.3] - 2026-10-15
+
+Provider maintenance patch: all ten agent CLIs re-audited against their latest releases (opencode 2.0.29, codex 0.162, claude 2.1.300, agy 1.3.5, kimi 2.2.0, pi 1.2.0, grok 1.0.52, kiro-cli 2.31, aider 0.86.2, Muse 1.4.8), with live turn verification for claude, codex and muse. No contract drift beyond the fixes below.
+
+### Fixed
+
+- **Grok zero-token totals.** A successful grok turn whose usage ledger went missing still emitted a final all-zero `usage`, wiping the tokens already accumulated from the assistant events. An all-zero terminal usage is now read as "unknown" (per grok's own headless guide) and the live total is kept.
+- **Muse wonder models.** The picker now seeds `muse-wonder-1.0` — Meta's current default coding model — and `muse-wonder-full-1.0`, and both offer the `max` reasoning-effort tier Meta's catalog declares; the old spark-version gate wrongly withheld it from the wonder line.
+- **Kiro on macOS.** Kiro installs are found (and spawned) through the app bundle at `/Applications/Kiro CLI.app/Contents/MacOS`, because the official installer never symlinks `kiro-cli` into PATH — previously an installed Kiro read as "not installed".
+- **Kiro engine drift.** Kiro turns pin `--agent-engine v2` whenever the CLI supports the flag: a user's V3 startup offer persists `chat.agentEngine = v3`, and V3 matches `--trust-tools` against internal tool ids the mentor's V2 names (`read,grep,glob`) never match — silently dropping the read-only pre-approval.
+- **OpenCode error detail.** Provider failures now append the raw upstream error from `error.response.body` (opencode 2.0.14+) instead of dropping it; a body that merely repeats the envelope message is not duplicated.
+
 ## [2.11.2] - 2026-10-14
 
 ### Changed
