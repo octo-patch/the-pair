@@ -217,8 +217,9 @@ fn describe_denied_actions(event: &Value) -> Option<String> {
 ///   read-only operations.
 /// - **Executor** (code writing): `--mode accept-edits` allows file edits,
 ///   and `--dangerously-skip-permissions` auto-approves tool calls.
-/// - **Reasoning effort**: `--effort <low|medium|high|max>` (`max` added in
-///   agy 1.2.11, verified 2026-09-26). Omitted when the caller passes `None`,
+/// - **Reasoning effort**: `--effort <low|medium|high|xhigh|max>` (verified
+///   against agy 1.3.5's help and runtime error, 2026-10-19; `minimal` is
+///   rejected). Omitted when the caller passes `None`,
 ///   and when the model id already ends in an effort tier
 ///   (`gemini-3.8-flash-high`, which is every id `agy models` lists): agy
 ///   rejects any `--effort` that differs from the id's own tier ("--model
@@ -240,8 +241,11 @@ pub fn build_agy_args(
     session_id: Option<&str>,
 ) -> Vec<String> {
     // `--print` is a value-taking flag, so it swallows the next argv element
-    // verbatim whatever it starts with (agy even prints a dedicated diagnostic
-    // when it has to guess). No leading-dash guard is needed.
+    // verbatim whatever it starts with — with one exception: a prompt that is
+    // exactly a known flag name (`--model`, `--effort`, …) makes agy abort
+    // with a dedicated diagnostic (verified on 1.3.5). Task text is never a
+    // bare flag name, so the risk is theoretical and no guard is applied;
+    // the failure would surface as that turn's error, not a hang.
     let prompt = message.to_string();
 
     let mut args: Vec<String> = vec!["--output-format".into(), "stream-json".into()];
@@ -276,13 +280,12 @@ pub fn build_agy_args(
 }
 
 /// Whether the model id pins its own effort (`gemini-3.8-flash-high`).
+/// The vocabulary is exactly what `--effort` accepts (verified on agy
+/// 1.3.5); `minimal` is not one of them.
 fn model_has_effort_tier(model: &str) -> bool {
-    model.rsplit_once('-').is_some_and(|(_, tier)| {
-        matches!(
-            tier,
-            "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
-        )
-    })
+    model
+        .rsplit_once('-')
+        .is_some_and(|(_, tier)| matches!(tier, "low" | "medium" | "high" | "xhigh" | "max"))
 }
 
 fn push_trimmed(out: &mut Vec<String>, s: &str) {

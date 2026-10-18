@@ -87,11 +87,13 @@ fn split_effort_suffix(name: &str) -> (String, Option<String>) {
     (trimmed.to_string(), None)
 }
 
-/// Drop a trailing `-low` / `-medium` / `-high` / `-thinking` effort tier from a
-/// model slug, so `gemini-3.8-flash-high` keys onto `gemini-3.8-flash`. Only
-/// applied when the display name already carries an effort suffix.
+/// Drop a trailing effort tier from a model slug, so `gemini-3.8-flash-high`
+/// keys onto `gemini-3.8-flash`. The vocabulary matches what agy's
+/// `--effort` accepts (`low|medium|high|xhigh|max`, verified on 1.3.5) plus
+/// the legacy `-thinking` suffix older slugs carried. Only applied when the
+/// display name already carries an effort suffix.
 fn strip_effort_slug_suffix(slug: &str) -> String {
-    for suffix in ["-low", "-medium", "-high", "-thinking"] {
+    for suffix in ["-low", "-medium", "-high", "-xhigh", "-max", "-thinking"] {
         if let Some(base) = slug.strip_suffix(suffix) {
             if !base.is_empty() {
                 return base.to_string();

@@ -71,6 +71,18 @@ pub trait Provider: Send + Sync {
         }
     }
 
+    /// Validate that a turn may start at all. The facade calls this before
+    /// `build_turn_command_in`; an `Err` aborts the turn with that message.
+    /// For providers whose safety posture depends on a CLI capability that
+    /// may vanish (e.g. Kiro's V2 engine pin, which the mentor's read-only
+    /// guarantee hangs on) — degrading silently is worse than refusing.
+    fn validate_turn_request(
+        &self,
+        _request: &ProviderTurnRequest,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
     /// Build the CLI command for a single turn.
     fn build_turn_command(&self, request: &ProviderTurnRequest) -> ProviderTurnCommand;
 

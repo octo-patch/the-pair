@@ -95,6 +95,7 @@ impl ProviderAdapter {
     ) -> Result<ProviderTurnCommand, String> {
         let provider = crate::providers::provider_for_kind(request.provider_kind)
             .ok_or_else(|| format!("No provider registered for {:?}", request.provider_kind))?;
+        provider.validate_turn_request(&request)?;
         Ok(provider.build_turn_command_in(&request, working_dir))
     }
 
@@ -189,6 +190,8 @@ mod tests {
                 "gpt-4o-mini".to_string(),
                 "-c".to_string(),
                 "sandbox_mode=\"workspace-write\"".to_string(),
+                "-c".to_string(),
+                "approval_policy=\"never\"".to_string(),
                 "--json".to_string(),
                 "--output-last-message".to_string(),
                 command

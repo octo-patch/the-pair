@@ -2,6 +2,17 @@ use super::Provider;
 use crate::provider_adapter::{ProviderTurnCommand, ProviderTurnRequest};
 use crate::provider_registry::{DetectedProviderProfile, ProviderKind};
 use crate::types::{TokenUsageSource, TurnTokenUsage};
+
+/// A token count off the wire. OpenCode's 2.x token schema is
+/// `Schema.Finite` (`packages/schema/src/token-usage.ts`), so a fractional
+/// count is legal JSON for it; `as_u64()` would drop the whole step.
+/// Fractional counts round up — at usage-display scale the overcount is
+/// invisible, and nothing downstream expects exactness.
+fn token_count(value: &Value) -> Option<u64> {
+    value
+        .as_u64()
+        .or_else(|| value.as_f64().map(|count| count.max(0.0).ceil() as u64))
+}
 use serde_json::Value;
 use std::path::Path;
 
@@ -41,6 +52,38 @@ const CONFIG_FILES: [&str; 2] = ["opencode.json", "opencode.jsonc"];
 /// agent `plan` is `<dir>/plan.md`.
 const AGENT_FILE_DIRS: [&str; 4] = ["agent", "agents", "mode", "modes"];
 
+/// Fixed config locations OpenCode 2.x reads before the user's own config
+/// (`packages/core/src/config/discovery.ts`: system directory + managed
+/// preferences, verified against the v2.0.32 tag source). An MDM policy that
+/// disables `plan` here must still drop `--agent plan`. Listed first in the
+/// source order, so a later explicit value overrides them.
+#[cfg(target_os = "macos")]
+const SYSTEM_CONFIG_DIRS: [&str; 2] =
+    ["/Library/Application Support/opencode", "/etc/opencode"];
+#[cfg(target_os = "windows")]
+const SYSTEM_CONFIG_DIRS: [&str; 1] = ["C:/ProgramData/opencode"];
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+const SYSTEM_CONFIG_DIRS: [&str; 1] = ["/etc/opencode"];
+
+/// The macOS managed-preferences plist MDM tooling can use to pin OpenCode
+/// config (`ai.opencode.managed`, verified against v2.0.32 source). Its
+/// payload is OpenCode's config JSON; parsing plist ourselves would need a
+/// new dependency, so a file that mentions `plan` and one of the disable
+/// keys fails open (see `plan_agent_disabled`).
+#[cfg(target_os = "macos")]
+fn managed_preferences_paths(home: &Path) -> Vec<std::path::PathBuf> {
+    let user = home
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if user.is_empty() {
+        return Vec::new();
+    }
+    vec![std::path::PathBuf::from(format!(
+        "/Library/Managed Preferences/{user}/ai.opencode.managed.plist"
+    ))]
+}
+
 /// Whether the user's OpenCode config disables the built-in `plan` agent:
 /// `{"agent":{"plan":{"disable":true}}}` (1.x schema, still read by 2.x),
 /// `{"agents":{"plan":{"disabled":true}}}` (2.x), the deprecated `mode.plan`,
@@ -67,6 +110,13 @@ pub(crate) fn plan_agent_disabled(project_dir: Option<&Path>) -> bool {
         }
     };
 
+    for dir in SYSTEM_CONFIG_DIRS {
+        apply(config_dir_plan_flag(Path::new(dir)));
+    }
+    #[cfg(target_os = "macos")]
+    for path in managed_preferences_paths(&crate::provider_registry::homedir()) {
+        apply(config_file_plan_flag(&path));
+    }
     for dir in crate::config_paths::opencode_config_dirs() {
         apply(config_dir_plan_flag(&dir));
     }
@@ -247,6 +297,7 @@ fn build_opencode_turn_command(
     request: &ProviderTurnRequest,
     variant_syntax: crate::provider_registry::OpencodeVariantSyntax,
     plan_agent_disabled: bool,
+    session_exists: Option<bool>,
 ) -> ProviderTurnCommand {
     let model = request.model.to_string();
     let mut args = vec!["run".into(), "--model".into(), model];
@@ -300,9 +351,40 @@ fn build_opencode_turn_command(
         args.push("plan".into());
     }
 
+    // The executor runs unattended: `--auto` approves whatever is not
+    // explicitly denied. Without it a headless turn that hits one of the
+    // build agent's built-in `ask` rules (external directories, `*.env*`
+    // reads) is either failed (1.x and early 2.x) or, since 2.0.15, answered
+    // with a rejection while the turn still exits 0 — the action silently
+    // never ran. Deny rules keep applying under `--auto`, so a user's
+    // explicit denies still bind. The flag exists in `run` on both majors
+    // (verified against opencode-ai 1.18.32 and 2.0.14/2.0.32) but not on
+    // pre-variant 1.0.x, whose `run` answered permission prompts on the
+    // terminal; those installs keep the old behavior instead of an unknown
+    // flag. The mentor never gets it: `plan`'s deny rules and ask posture
+    // are its read-only guard.
+    if request.role != "mentor"
+        && variant_syntax != crate::provider_registry::OpencodeVariantSyntax::Unsupported
+    {
+        args.push("--auto".into());
+    }
+
+    // OpenCode 1.x fails a run whose `--session` id is unknown ("Error:
+    // Session not found", verified against 1.18.32), but 2.x silently creates
+    // a fresh empty session under that id (verified live on 2.0.14 and
+    // 2.0.32; the 2.0.32 help spells it out: "Session ID to continue, or to
+    // create if it does not exist") and every event still echoes the same
+    // id, so a run whose snapshot references a deleted session would keep
+    // "resuming" a context-free ghost. When the probe proved the id gone,
+    // drop the flag: the turn starts a real new session and the spawner
+    // persists its fresh id, so exactly one turn loses context. An
+    // inconclusive probe (`None`) keeps the flag — 1.x keeps its loud
+    // failure, 2.x keeps today's behavior.
     if let Some(sid) = request.session_id {
-        args.push("--session".into());
-        args.push(sid.into());
+        if session_exists != Some(false) {
+            args.push("--session".into());
+            args.push(sid.into());
+        }
     }
     args.push("--format".into());
     args.push("json".into());
@@ -346,10 +428,16 @@ impl Provider for OpenCodeProvider {
         // the plan agent makes every `--agent plan` run fail with
         // `Agent not found: "plan"` (verified against opencode 2.0.14).
         let plan_disabled = request.role == "mentor" && plan_agent_disabled(working_dir);
+        // Only a resumed turn can point at a session OpenCode lost; the probe
+        // is skipped for first turns so they pay nothing.
+        let session_exists = request.session_id.and_then(|session_id| {
+            crate::provider_registry::opencode_session_exists(session_id, working_dir)
+        });
         build_opencode_turn_command(
             request,
             crate::provider_registry::opencode_variant_syntax(),
             plan_disabled,
+            session_exists,
         )
     }
 
@@ -387,12 +475,12 @@ impl Provider for OpenCodeProvider {
             let part_type = part.get("type").and_then(|v| v.as_str()).unwrap_or("");
             if part_type == "step-finish" || part_type == "step_finish" {
                 if let Some(tokens) = part.get("tokens") {
-                    let bucket = |key: &str| tokens.get(key).and_then(|v| v.as_u64());
+                    let bucket = |key: &str| tokens.get(key).and_then(token_count);
                     let cache = |key: &str| {
                         tokens
                             .get("cache")
                             .and_then(|c| c.get(key))
-                            .and_then(|v| v.as_u64())
+                            .and_then(token_count)
                             .unwrap_or(0)
                     };
 
@@ -414,13 +502,19 @@ impl Provider for OpenCodeProvider {
                     if let Some(output) = output_tokens {
                         let input_val =
                             input_tokens.map(|uncached| uncached + cache("read") + cache("write"));
-                        // A step is final only when `reason == "stop"` (the model is done) or
-                        // when `reason` is absent. `reason == "tool-calls"` is an intermediate
-                        // step that continues into the next tool round -> Live.
+                        // A step is final when the model will not continue:
+                        // `FinishReason` is
+                        // `stop|length|tool-calls|content-filter|error|unknown`
+                        // (2.x schema), and only `tool-calls` continues into
+                        // the next tool round -> Live. An absent reason keeps
+                        // the 1.x reading of final; an unrecognized one stays
+                        // Live so a future reason can't freeze the total early.
                         let is_stop = part
                             .get("reason")
                             .and_then(|v| v.as_str())
-                            .map(|reason| reason == "stop")
+                            .map(|reason| {
+                                matches!(reason, "stop" | "length" | "content-filter" | "error")
+                            })
                             .unwrap_or(true);
                         return Some(TurnTokenUsage {
                             output_tokens: output,
@@ -446,14 +540,14 @@ impl Provider for OpenCodeProvider {
             .or_else(|| usage.get("completion_tokens"))
             .or_else(|| usage.get("completionTokens"))
             .or_else(|| usage.get("output"))
-            .and_then(|v| v.as_u64())?;
+            .and_then(token_count)?;
 
         let input_tokens = usage
             .get("input_tokens")
             .or_else(|| usage.get("prompt_tokens"))
             .or_else(|| usage.get("promptTokens"))
             .or_else(|| usage.get("input"))
-            .and_then(|v| v.as_u64());
+            .and_then(token_count);
 
         let event_type = event.get("type").and_then(|v| v.as_str()).unwrap_or("");
         let is_final = event_type == "result"
@@ -579,12 +673,13 @@ mod tests {
     use super::*;
     use crate::provider_registry::OpencodeVariantSyntax;
 
-    /// A command built with no config disabling the plan agent.
+    /// A command built with no config disabling the plan agent and no
+    /// session-existence probe result.
     fn build_command(
         request: &ProviderTurnRequest,
         syntax: OpencodeVariantSyntax,
     ) -> ProviderTurnCommand {
-        build_opencode_turn_command(request, syntax, false)
+        build_opencode_turn_command(request, syntax, false, None)
     }
 
     fn base_request<'a>(
@@ -721,6 +816,104 @@ mod tests {
     }
 
     #[test]
+    fn opencode_executor_auto_approves_and_the_mentor_never_does() {
+        // `--auto` keeps a headless executor turn from being failed (1.x,
+        // early 2.x) or silently partial (2.0.15+) by the build agent's
+        // built-in `ask` rules. It exists on both variant-capable majors.
+        for syntax in [OpencodeVariantSyntax::Flag, OpencodeVariantSyntax::Suffix] {
+            let executor = build_command(&base_request("minimax/MiniMax-M3", None), syntax);
+            assert!(
+                executor.args.contains(&"--auto".to_string()),
+                "executor turns auto-approve on {syntax:?}"
+            );
+        }
+
+        // Pre-variant 1.0.x `run` answered permission prompts on the
+        // terminal and does not know the flag; unknown flags fail the turn.
+        let legacy = build_command(
+            &base_request("minimax/MiniMax-M3", None),
+            OpencodeVariantSyntax::Unsupported,
+        );
+        assert!(!legacy.args.contains(&"--auto".to_string()));
+
+        // The mentor's read-only posture *is* the plan agent's deny/ask
+        // rules; auto-approving would punch through them.
+        let mentor_request = ProviderTurnRequest {
+            provider_kind: ProviderKind::Opencode,
+            model: "minimax/MiniMax-M3",
+            session_id: None,
+            role: "mentor",
+            pair_id: "pair-1",
+            message: "review the diff",
+            reasoning_effort: None,
+        };
+        let mentor = build_command(&mentor_request, OpencodeVariantSyntax::Suffix);
+        assert!(!mentor.args.contains(&"--auto".to_string()));
+    }
+
+    #[test]
+    fn opencode_resume_drops_a_session_the_cli_no_longer_has() {
+        // 2.x silently recreates an unknown `--session` id as an empty
+        // session (verified live on 2.0.14/2.0.32), so a proven-missing id
+        // must not be sent; existing and inconclusive probes keep resuming.
+        let request = ProviderTurnRequest {
+            provider_kind: ProviderKind::Opencode,
+            model: "minimax/MiniMax-M3",
+            session_id: Some("ses_gone"),
+            role: "executor",
+            pair_id: "pair-1",
+            message: "do the work",
+            reasoning_effort: None,
+        };
+        let gone = build_opencode_turn_command(
+            &request,
+            OpencodeVariantSyntax::Suffix,
+            false,
+            Some(false),
+        );
+        assert!(!gone.args.contains(&"--session".to_string()));
+        assert!(!gone.args.contains(&"ses_gone".to_string()));
+
+        for probe in [Some(true), None] {
+            let command =
+                build_opencode_turn_command(&request, OpencodeVariantSyntax::Suffix, false, probe);
+            let session_idx = command
+                .args
+                .iter()
+                .position(|arg| arg == "--session")
+                .expect("--session kept unless the probe proved the id gone");
+            assert_eq!(command.args[session_idx + 1], "ses_gone");
+        }
+    }
+
+    #[test]
+    fn opencode_step_usage_rounds_fractional_tokens_and_finishes_on_length() {
+        // 2.x's token schema (`Schema.Finite`) permits fractional counts;
+        // they must not drop the whole step. A `length` stop ends the turn
+        // just like `stop`, so its usage is Final.
+        let provider = OpenCodeProvider;
+        let fractional = serde_json::json!({
+            "type": "step_finish",
+            "part": {
+                "type": "step-finish",
+                "reason": "length",
+                "tokens": {
+                    "input": 100.2,
+                    "output": 50.6,
+                    "reasoning": 10.0,
+                    "cache": {"read": 5.5, "write": 0}
+                }
+            }
+        });
+        let usage = provider
+            .extract_token_usage(&fractional)
+            .expect("fractional step usage");
+        assert_eq!(usage.input_tokens, Some(101 + 6 + 0));
+        assert_eq!(usage.output_tokens, 51 + 10);
+        assert_eq!(usage.source, TokenUsageSource::Final);
+    }
+
+    #[test]
     fn opencode_exposes_only_supported_model_reasoning_variants() {
         let provider = OpenCodeProvider;
 
@@ -810,8 +1003,12 @@ mod tests {
             message: "plan the work",
             reasoning_effort: None,
         };
-        let command =
-            build_opencode_turn_command(&mentor_request, OpencodeVariantSyntax::Suffix, true);
+        let command = build_opencode_turn_command(
+            &mentor_request,
+            OpencodeVariantSyntax::Suffix,
+            true,
+            None,
+        );
         assert!(!command.args.contains(&"--agent".to_string()));
         assert_eq!(command.args.last().unwrap(), "plan the work");
     }
@@ -876,6 +1073,19 @@ mod tests {
         assert_eq!(agent_file_plan_flag(&file), None);
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn managed_preferences_path_names_the_plist_for_the_home_user() {
+        assert_eq!(
+            managed_preferences_paths(Path::new("/Users/alex")),
+            vec![std::path::PathBuf::from(
+                "/Library/Managed Preferences/alex/ai.opencode.managed.plist"
+            )]
+        );
+        // A home with no final component has no user to name.
+        assert!(managed_preferences_paths(Path::new("/")).is_empty());
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -1032,6 +1242,27 @@ mod tests {
                 .contains(&"--agent".to_string()),
         );
 
+        // A resumed turn probes `session list` (the stub knows `ses_live`
+        // only): a session OpenCode lost is dropped so 2.x can't silently
+        // recreate it empty, a live one is kept.
+        let resumed = ProviderTurnRequest {
+            session_id: Some("ses_gone"),
+            ..request
+        };
+        let dropped = provider.build_turn_command_in(&resumed, Some(&project));
+        results.push(!dropped.args.contains(&"--session".to_string()));
+        let resumed = ProviderTurnRequest {
+            session_id: Some("ses_live"),
+            ..request
+        };
+        let kept = provider.build_turn_command_in(&resumed, Some(&project));
+        let session_idx = kept
+            .args
+            .iter()
+            .position(|arg| arg == "--session")
+            .expect("live session should resume");
+        results.push(kept.args[session_idx + 1] == "ses_live");
+
         for (key, value) in saved {
             match value {
                 Some(value) => std::env::set_var(key, value),
@@ -1040,7 +1271,7 @@ mod tests {
         }
         std::fs::remove_dir_all(&root).ok();
 
-        assert_eq!(results, vec![true, false, true]);
+        assert_eq!(results, vec![true, false, true, true, true]);
     }
 
     /// A stand-in `opencode` whose `run --help` advertises the 2.x
@@ -1056,6 +1287,10 @@ mod tests {
             "#!/bin/sh\n\
              if [ \"$1\" = \"run\" ] && [ \"$2\" = \"--help\" ]; then\n\
              \techo '  --model, -m string   Model to use in the format provider/model#variant'\n\
+             \texit 0\n\
+             fi\n\
+             if [ \"$1\" = \"session\" ] && [ \"$2\" = \"list\" ]; then\n\
+             \techo '[{\"id\":\"ses_live\",\"directory\":\"/repo\"}]'\n\
              \texit 0\n\
              fi\n\
              exit 1\n",

@@ -451,6 +451,18 @@ fn mock_token_usage() -> crate::types::TurnTokenUsage {
     }
 }
 
+/// The `PWD` a provider child process is spawned with: always the pair's
+/// directory, never whatever the app process inherited. Some CLIs resolve
+/// their project root from $PWD before falling back to the real cwd —
+/// OpenCode 2.x does exactly that (`packages/cli/src/run/run.ts`:
+/// `options.root ?? process.env.PWD ?? process.cwd()`, then
+/// `process.chdir(root)`; verified on 2.0.14/2.0.32: with cwd A and PWD B
+/// the session is created in B), so a stale inherited PWD would silently
+/// run the agent in another tree.
+fn pwd_environment_value(directory: &str) -> &str {
+    directory
+}
+
 fn apply_provider_cli_env(command: &mut Command) {
     for (key, value) in cli_environment_overrides(&homedir()) {
         command.env(key, value);
@@ -2443,6 +2455,7 @@ impl ProcessSpawner {
         child_command
             .args(&args)
             .current_dir(&ctx.directory)
+            .env("PWD", pwd_environment_value(&ctx.directory))
             // Nothing is ever written to a provider's stdin. Leaving it inherited
             // makes CLIs that read piped stdin before starting (pi, `claude -p`)
             // wait on whatever the app itself was launched with.
@@ -3828,6 +3841,17 @@ mod tests {
             "last live usage should be preserved when final event lacks usage"
         );
         assert_eq!(last_token_usage.as_ref().unwrap().output_tokens, 500);
+    }
+
+    #[test]
+    fn pwd_environment_value_is_always_the_pair_directory() {
+        // OpenCode 2.x roots itself at $PWD when present (see the function's
+        // doc comment), so the spawned value must be the pair's directory
+        // itself — never an inherited or derived path.
+        assert_eq!(
+            pwd_environment_value("/repos/the-pair/.worktrees/pair-1"),
+            "/repos/the-pair/.worktrees/pair-1"
+        );
     }
 
     #[test]

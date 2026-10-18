@@ -121,6 +121,46 @@ impl Provider for KimiProvider {
         Some(out)
     }
 
+    fn extract_error_detail(&self, event: &Value) -> Option<String> {
+        // A step the runtime is about to retry arrives as a meta event
+        // (`{"role":"meta","type":"turn.step.retrying","failed_attempt":…,
+        // "error_name":…,"error_message":…,"status_code":…}` — verified in
+        // kimi-code 2.2.0's `PromptJsonWriter.writeRetrying`). Surfacing it
+        // explains a turn that eventually dies; if a later attempt succeeds,
+        // `clears_turn_error` drops it again. Terminal failures still end the
+        // process non-zero with `error: <code>: <message>` on stderr.
+        if event.get("type").and_then(|v| v.as_str()) != Some("turn.step.retrying") {
+            return None;
+        }
+        let message = event
+            .get("error_message")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        let name = event
+            .get("error_name")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        let status = event.get("status_code").and_then(|v| v.as_u64());
+        let mut detail = match (name, message) {
+            (Some(name), Some(message)) => format!("{name}: {message}"),
+            (None, Some(message)) => message.to_string(),
+            (Some(name), None) => name.to_string(),
+            (None, None) => "Kimi Code step failed (retrying)".to_string(),
+        };
+        if let Some(status) = status {
+            detail = format!("{detail} (HTTP {status})");
+        }
+        Some(detail)
+    }
+
+    fn clears_turn_error(&self, event: &Value) -> bool {
+        // Any assistant message after a `turn.step.retrying` means a later
+        // attempt produced output, so the transient failure is resolved.
+        event.get("role").and_then(|v| v.as_str()) == Some("assistant")
+    }
+
     fn detect(&self) -> DetectedProviderProfile {
         crate::provider_registry::ProviderRegistry::detect_kimi()
     }
@@ -209,6 +249,57 @@ fn collect_kimi_content(content: Option<&Value>, out: &mut Vec<String>) {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn kimi_surfaces_retrying_errors_and_clears_them_on_recovery() {
+        // Shape from kimi-code 2.2.0's `PromptJsonWriter.writeRetrying`:
+        // a failed step the runtime is about to retry.
+        let provider = KimiProvider;
+        let retrying = json!({
+            "role": "meta",
+            "type": "turn.step.retrying",
+            "failed_attempt": 1,
+            "next_attempt": 2,
+            "max_attempts": 3,
+            "delay_ms": 500,
+            "error_name": "RateLimitError",
+            "error_message": "too many requests",
+            "status_code": 429
+        });
+        assert_eq!(
+            provider.extract_error_detail(&retrying).as_deref(),
+            Some("RateLimitError: too many requests (HTTP 429)")
+        );
+
+        // A later assistant message means a retry produced output.
+        let recovered = json!({"role": "assistant", "content": "done"});
+        assert!(provider.clears_turn_error(&recovered));
+        assert!(provider.extract_error_detail(&recovered).is_none());
+        // The retrying event itself and tool traffic don't clear the error.
+        assert!(!provider.clears_turn_error(&retrying));
+        assert!(!provider.clears_turn_error(&json!({"role": "tool", "content": "x"})));
+
+        // Fields degrade gracefully when the writer omits some.
+        let bare = json!({"role": "meta", "type": "turn.step.retrying"});
+        assert_eq!(
+            provider.extract_error_detail(&bare).as_deref(),
+            Some("Kimi Code step failed (retrying)")
+        );
+        let message_only = json!({
+            "role": "meta", "type": "turn.step.retrying", "error_message": "boom"
+        });
+        assert_eq!(
+            provider.extract_error_detail(&message_only).as_deref(),
+            Some("boom")
+        );
+        let name_only = json!({
+            "role": "meta", "type": "turn.step.retrying", "error_name": "TimeoutError"
+        });
+        assert_eq!(
+            provider.extract_error_detail(&name_only).as_deref(),
+            Some("TimeoutError")
+        );
+    }
 
     #[test]
     fn kimi_command_uses_print_mode_with_stream_json() {

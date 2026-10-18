@@ -8,15 +8,19 @@ use serde_json::Value;
 /// Uses `pi --mode json` to emit structured JSON event lines on stdout.
 /// Pi is a BYOK multi-provider agent: model ids are `provider/model` format
 /// (e.g. `anthropic/claude-sonnet-4`). The `pi/` qualifier added by The Pair
-/// is stripped at spawn time so Pi receives the inner `provider/model` value.
+/// is stripped at spawn time so Pi receives the inner `provider/model` value,
+/// plus `--provider <provider>` to pin the route the id names.
 ///
-/// Event shapes verified against pi 0.87.0 (2026-09-26): the stream opens with
-/// a `{"type":"session","id":…}` header, assistant messages carry
+/// Event shapes verified against pi 0.87.0 (2026-09-26) and re-checked
+/// against the 0.87.0 docs on 2026-10-19: the stream opens with a
+/// `{"type":"session","id":…}` header, assistant messages carry
 /// `usage.{input,output,cacheRead,cacheWrite}` (`input` excludes both cache
 /// buckets — a live `agent_end` summed to `totalTokens` only after folding
 /// them in; recent versions add `reasoning`/`totalTokens`/`cost` alongside,
-/// which we ignore), and the closing `agent_end` repeats every message of the
-/// turn in `messages`.
+/// which we ignore), and `agent_end` carries the run's messages. `agent_end`
+/// is only "one low-level run ended": Pi may still auto-retry, compact and
+/// retry, or continue with queued follow-ups before `agent_settled`
+/// (`extensions.md`), so a turn can see several `agent_end` events.
 pub struct PiProvider;
 
 impl Provider for PiProvider {
@@ -41,12 +45,24 @@ impl Provider for PiProvider {
             request.message.to_string()
         };
 
-        let mut args: Vec<String> = vec![
-            "--mode".into(),
-            "json".into(),
-            "--model".into(),
-            model.into(),
-        ];
+        let mut args: Vec<String> = vec!["--mode".into(), "json".into()];
+
+        // Pi 1.3.0 changed `--model` disambiguation: it now prefers the
+        // provider with credentials and otherwise reports the ambiguity,
+        // which a headless turn cannot answer. The Pair's ids always name
+        // their provider (`source_provider` from `pi --list-models`), so pin
+        // it explicitly — `--provider` predates 0.87 and the pair is already
+        // what `--model provider/model` meant. A bare id without `/` (or an
+        // id whose first segment is empty) has nothing to pin.
+        if let Some((provider, _)) = model.split_once('/') {
+            if !provider.is_empty() {
+                args.push("--provider".into());
+                args.push(provider.into());
+            }
+        }
+
+        args.push("--model".into());
+        args.push(model.into());
 
         if let Some(effort) = request.reasoning_effort {
             args.push("--thinking".into());
@@ -84,10 +100,14 @@ impl Provider for PiProvider {
 
     fn extract_token_usage(&self, event: &Value) -> Option<TurnTokenUsage> {
         // `message_end` reports one assistant message (live); `agent_end`
-        // repeats the whole turn, so its assistant usages sum to the final count.
-        // An `agent_end` flagged `willRetry` is superseded by the retry's own
-        // `agent_end` — ignore it here, as `final_assistant_message` does for
-        // text/errors, or the retried run's Final usage would be counted twice.
+        // repeats the whole run, so its assistant usages sum to that run's
+        // count. A recovery turn (auto-retry, compaction retry) emits several
+        // `agent_end` events; the spawner's per-turn folding (`UsageScope::Turn`)
+        // keeps the latest, and `agent_settled` — when the CLI emits it —
+        // arrives after the last one. An `agent_end` flagged `willRetry` is
+        // superseded by the retry's own `agent_end` — ignore it here, as
+        // `final_assistant_message` does for text/errors, or the retried run's
+        // Final usage would be counted twice.
         if event.get("willRetry").and_then(|v| v.as_bool()) == Some(true) {
             return None;
         }
@@ -138,6 +158,49 @@ impl Provider for PiProvider {
             collect_pi_content(last.get("content"), &mut out);
         }
         Some(out)
+    }
+
+    fn final_output_text(&self, event: &Value) -> Option<String> {
+        // `agent_end` only means one low-level run ended — Pi may still
+        // auto-retry, compact and retry, or continue with queued follow-ups
+        // (`extensions.md`), and `agent_settled` carries no payload (just
+        // `{"type":"agent_settled"}`, `rpc.md`), so it cannot supply the
+        // reply itself. Reporting every `agent_end`'s last assistant text
+        // here makes the spawner's authoritative-final slot last-wins: a
+        // recovery run's answer replaces the truncated run's instead of
+        // being joined to it. A failed final message reports nothing — its
+        // error is surfaced by `extract_error_detail` instead.
+        let last = final_assistant_message(event)?;
+        if matches!(
+            last.get("stopReason").and_then(|v| v.as_str()),
+            Some("error" | "aborted")
+        ) {
+            return None;
+        }
+        let mut out = Vec::new();
+        collect_pi_content(last.get("content"), &mut out);
+        let text = out.join("\n\n");
+        (!text.is_empty()).then_some(text)
+    }
+
+    fn clears_turn_error(&self, event: &Value) -> bool {
+        // A failed `agent_end` followed by another successful run is a
+        // recovered turn: `agent_settled` proves Pi will not continue
+        // automatically, and a later `agent_end` whose final message did not
+        // fail proves the same thing on CLIs that never emit `agent_settled`
+        // (0.87.0's JSON event set has none). Without this, a turn that
+        // recovered via Pi's own retry would still surface the first run's
+        // error.
+        match event.get("type").and_then(|v| v.as_str()) {
+            Some("agent_settled") => true,
+            Some("agent_end") => final_assistant_message(event).is_some_and(|last| {
+                !matches!(
+                    last.get("stopReason").and_then(|v| v.as_str()),
+                    Some("error" | "aborted")
+                )
+            }),
+            _ => false,
+        }
     }
 
     fn extract_error_detail(&self, event: &Value) -> Option<String> {
@@ -215,8 +278,12 @@ fn is_assistant(message: &Value) -> bool {
     message.get("role").and_then(|v| v.as_str()) == Some("assistant")
 }
 
-/// The last assistant message of a terminal `agent_end` event. An `agent_end`
-/// flagged `willRetry` is superseded by the retry's own `agent_end`.
+/// The last assistant message of an `agent_end` event (`{type, messages}`).
+/// An `agent_end` flagged `willRetry` is superseded by the retry's own
+/// `agent_end`. Note 0.87.0's `AgentEndEvent` type has no `willRetry` field
+/// (`willRetry` lives on the compaction events), so this check is defensive
+/// for streams that do carry it; the real recovery handling is the
+/// last-wins `final_output_text` / `clears_turn_error` pair.
 fn final_assistant_message(event: &Value) -> Option<&Value> {
     if event.get("type").and_then(|v| v.as_str()) != Some("agent_end")
         || event.get("willRetry").and_then(|v| v.as_bool()) == Some(true)
@@ -316,12 +383,45 @@ mod tests {
             vec![
                 "--mode".to_string(),
                 "json".to_string(),
+                "--provider".to_string(),
+                "anthropic".to_string(),
                 "--model".to_string(),
                 "anthropic/claude-sonnet-4".to_string(),
                 "do the work".to_string()
             ]
         );
         assert!(command.last_message_path.is_none());
+    }
+
+    #[test]
+    fn pi_pins_the_provider_so_the_model_is_never_ambiguous() {
+        // Pi 1.3.0 reports a bare-model ambiguity instead of guessing when
+        // no candidate has credentials; a headless turn cannot answer that.
+        // The Pair's ids always carry their provider, so it is pinned.
+        let provider = PiProvider;
+        let command = provider.build_turn_command(&ProviderTurnRequest {
+            provider_kind: ProviderKind::Pi,
+            model: "openai/gpt-4o",
+            session_id: None,
+            role: "executor",
+            pair_id: "pair-1",
+            message: "hello",
+            reasoning_effort: None,
+        });
+        let provider_arg = command.args.iter().position(|a| a == "--provider").unwrap();
+        assert_eq!(command.args[provider_arg + 1], "openai");
+
+        // A bare id (no provider segment) has nothing to pin.
+        let bare = provider.build_turn_command(&ProviderTurnRequest {
+            provider_kind: ProviderKind::Pi,
+            model: "claude-sonnet-4",
+            session_id: None,
+            role: "executor",
+            pair_id: "pair-1",
+            message: "hello",
+            reasoning_effort: None,
+        });
+        assert!(!bare.args.contains(&"--provider".to_string()));
     }
 
     #[test]
@@ -412,6 +512,43 @@ mod tests {
         let provider = PiProvider;
         let event = json!({"type": "turn_start"});
         assert_eq!(provider.collect_json_candidates(&event), Some(vec![]));
+    }
+
+    #[test]
+    fn pi_final_output_and_error_clearing_follow_the_last_run() {
+        // A recovery turn emits several `agent_end` events (auto-retry /
+        // compaction retry) before `agent_settled`; the reply and the error
+        // verdict must come from the last run, not the truncated first one.
+        let provider = PiProvider;
+        let failed_run = json!({
+            "type": "agent_end",
+            "messages": [{
+                "role": "assistant",
+                "content": [{"type": "text", "text": "truncated"}],
+                "stopReason": "error",
+                "errorMessage": "rate limited"
+            }]
+        });
+        assert!(provider.final_output_text(&failed_run).is_none());
+        assert!(!provider.clears_turn_error(&failed_run));
+
+        let recovered_run = json!({
+            "type": "agent_end",
+            "messages": [{
+                "role": "assistant",
+                "content": [{"type": "text", "text": "the real answer"}],
+                "stopReason": "stop"
+            }]
+        });
+        assert_eq!(
+            provider.final_output_text(&recovered_run).as_deref(),
+            Some("the real answer")
+        );
+        assert!(provider.clears_turn_error(&recovered_run));
+
+        // `agent_settled` is payload-free proof nothing more will run.
+        assert!(provider.clears_turn_error(&json!({"type": "agent_settled"})));
+        assert!(!provider.clears_turn_error(&json!({"type": "turn_start"})));
     }
 
     #[test]

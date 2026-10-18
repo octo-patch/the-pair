@@ -48,7 +48,7 @@ impl Provider for CodexProvider {
         // "Not inside a trusted directory and --skip-git-repo-check was not
         // specified." (exit 1, on stderr, before any JSON event). The flag is
         // `global`, so it is accepted by `exec resume` too. Re-checked against
-        // codex-cli 0.149.1 and 0.160.0.
+        // codex-cli 0.149.1, 0.160.0 and 0.163.0 (2026-10-19).
         args.push("--skip-git-repo-check".into());
         // Strip provider prefix if present (e.g. "codex/model-id" → "model-id").
         let model = request
@@ -61,8 +61,8 @@ impl Provider for CodexProvider {
         // executor needs workspace-write to apply edits in the worktree. It is
         // set through `-c sandbox_mode=` because `codex exec resume` rejects
         // `--sandbox`, and a resume without any sandbox setting would fall back
-        // to the user's config.toml. Re-checked against codex-cli 0.149.1
-        // (2026-09-30): `codex exec resume --help` still offers `-c`/`--model`/
+        // to the user's config.toml. Re-checked against codex-cli 0.163.0
+        // (2026-10-19): `codex exec resume --help` still offers `-c`/`--model`/
         // `--json`/`--output-last-message` but no `--sandbox`.
         let sandbox = if request.role == "mentor" {
             "read-only"
@@ -71,6 +71,19 @@ impl Provider for CodexProvider {
         };
         args.push("-c".into());
         args.push(format!("sandbox_mode=\"{}\"", sandbox));
+        // Same reasoning for approvals: with nothing injected, a user's
+        // `approval_policy = "on-request"` in config.toml can leave a
+        // headless executor waiting on a prompt that can never be answered
+        // (stdin is /dev/null). Pin "never" for the executor — the sandbox
+        // above stays the real boundary. The mentor does not need it: it runs
+        // read-only, where nothing is ever approved into a write. Verified on
+        // 0.163.0: `codex doctor -c 'approval_policy="never"'` reports
+        // "approval Never", and `-c` is accepted by `exec resume` too (that
+        // subcommand has no `--ask-for-approval`).
+        if request.role != "mentor" {
+            args.push("-c".into());
+            args.push("approval_policy=\"never\"".into());
+        }
         // `codex exec` removed the `--reasoning-effort` flag. Reasoning is configured
         // via the `model_reasoning_effort` key, injected through `-c`.
         if let Some(effort) = request.reasoning_effort {
@@ -275,6 +288,8 @@ mod tests {
                 "gpt-4o-mini".to_string(),
                 "-c".to_string(),
                 "sandbox_mode=\"workspace-write\"".to_string(),
+                "-c".to_string(),
+                "approval_policy=\"never\"".to_string(),
                 "--json".to_string(),
                 "--output-last-message".to_string(),
                 command
@@ -385,6 +400,12 @@ mod tests {
             .args
             .contains(&"sandbox_mode=\"read-only\"".to_string()));
         assert!(!command.args.contains(&"--sandbox".to_string()));
+        // The approval pin is executor-only: read-only turns never need an
+        // approval to become writable, and the user's own policy may stay
+        // in charge there.
+        assert!(!command
+            .args
+            .contains(&"approval_policy=\"never\"".to_string()));
     }
 
     #[test]

@@ -71,6 +71,13 @@ impl Provider for GrokProvider {
             // `grok --help`; `--always-approve` is the documented spelling
             // (verified 1.0.44), so nothing breaks if the alias is dropped.
             "--always-approve".into(),
+            // xAI's headless guide recommends `--no-auto-update` for scripts:
+            // no background update check mid-turn. The flag is hidden from
+            // `grok --help`, so it cannot be probed that way; it is accepted
+            // by 1.0.44 (verified live: `grok --no-auto-update --version`
+            // runs, while an unknown flag errors) and documented in the
+            // bundled headless-mode guide, so it rides unconditionally.
+            "--no-auto-update".into(),
         ];
         if request.role == "mentor" {
             // Grok's documented read-only tool allowlist (internal tool IDs,
@@ -78,6 +85,21 @@ impl Provider for GrokProvider {
             // but has no file-editing or shell tools available at all.
             args.push("--tools".into());
             args.push("read_file,grep,list_dir".into());
+            // `--tools` alone is NOT read-only: Grok's own headless guide
+            // (bundled with 1.0.44, 14-headless-mode.md:34,82) says the final
+            // toolset "retains requested tools plus always-on MCP
+            // meta-tools" — MCP stays "available unless denied", and a
+            // user's MCP server can write. Deny every MCP invocation for the
+            // mentor. `MCPTool(*)` is the native rule spelling (glob over
+            // `server__tool` names; the Claude-style `mcp__*` is also
+            // accepted, 22-permissions-and-safety.md:366-368), and deny rules
+            // apply on top of `--always-approve` ("Deny always wins over
+            // allow and over always-approve's normal pass-through", same
+            // guide:96). The flag predates the oldest verified install
+            // (1.0.40), and an unrecognized rule is skipped with a warning
+            // rather than failing the turn, so this is safe unprobed.
+            args.push("--deny".into());
+            args.push("MCPTool(*)".into());
         }
         if let Some(sid) = request.session_id {
             args.push("--resume".into());
@@ -303,6 +325,7 @@ mod tests {
                 "-m".to_string(),
                 "grok-4.6".to_string(),
                 "--always-approve".to_string(),
+                "--no-auto-update".to_string(),
             ]
         );
         assert!(command.last_message_path.is_none());
@@ -327,6 +350,16 @@ mod tests {
             .position(|a| a == "--tools")
             .expect("mentor should carry a --tools allowlist");
         assert_eq!(command.args[tools_idx + 1], "read_file,grep,list_dir");
+        // The allowlist alone is not read-only: Grok keeps MCP meta-tools
+        // "available unless denied" (bundled headless guide, 1.0.44), so the
+        // mentor must also deny every MCP invocation. Deny rules apply on
+        // top of --always-approve per the same guide.
+        let deny_idx = command
+            .args
+            .iter()
+            .position(|a| a == "--deny")
+            .expect("mentor should deny MCP tools");
+        assert_eq!(command.args[deny_idx + 1], "MCPTool(*)");
         // The executor gets no allowlist.
         let executor = provider.build_turn_command(&ProviderTurnRequest {
             provider_kind: ProviderKind::Grok,
@@ -338,6 +371,7 @@ mod tests {
             reasoning_effort: None,
         });
         assert!(!executor.args.contains(&"--tools".to_string()));
+        assert!(!executor.args.contains(&"--deny".to_string()));
     }
 
     #[test]

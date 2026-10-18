@@ -55,7 +55,8 @@ static OPENCODE_VARIANT_SYNTAX: ProbeCache<OpencodeVariantSyntax> =
     ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
 static PI_MAX_THINKING_LEVEL_SUPPORT: ProbeCache<bool> = ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
 static PI_NO_MCP_SUPPORT: ProbeCache<bool> = ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
-static KIRO_AGENT_ENGINE_SUPPORT: ProbeCache<bool> = ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
+static KIRO_AGENT_ENGINE_SUPPORT: ProbeCache<KiroEnginePin> =
+    ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
 static CODEX_REASONING_LEVELS: ProbeCache<Arc<CodexReasoningCatalog>> =
     ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
 static CODEX_SESSION_USAGE: ProbeCache<bool> = ProbeCache::new(FAILED_PROBE_RETRY_AFTER);
@@ -297,6 +298,48 @@ pub(crate) fn opencode_variant_syntax() -> OpencodeVariantSyntax {
         .unwrap_or(OpencodeVariantSyntax::Unsupported)
 }
 
+/// Whether the installed `opencode` still has `session_id` among the
+/// project's top-level sessions, from `opencode session list --format json`
+/// run in `working_dir`. `Some(true)`/`Some(false)` only when the command
+/// ran and its JSON parsed; `None` for any inconclusive outcome (CLI
+/// missing, timeout, non-zero exit, unparsable output — e.g. 1.18.32 prints
+/// nothing for an empty store), so callers can keep the flag rather than
+/// gamble on a flaky probe.
+///
+/// Both majors ship `session list --format json` (verified against
+/// opencode-ai 1.18.32 and 2.0.14/2.0.32); entries carry `id` and the
+/// project `directory`. The list is scoped to the project of the *actual*
+/// cwd (this subcommand resolves `process.cwd()`, not `$PWD` — verified on
+/// 2.0.32), so the probe runs in the pair's directory. `-n 1000` widens the
+/// default 100-session window; `-n 0` prints the help instead. PWD is still
+/// pinned to the directory so the probe sees the same root the turn itself
+/// will (see the PWD note in `process_spawner`).
+pub(crate) fn opencode_session_exists(session_id: &str, working_dir: Option<&Path>) -> Option<bool> {
+    let command_path = which_binary("opencode")?;
+    let home = homedir();
+    let mut command = Command::new(&command_path);
+    command.args(["session", "list", "--format", "json", "-n", "1000"]);
+    prepare_cli_command(&mut command, &home);
+    if let Some(dir) = working_dir {
+        command.current_dir(dir);
+        command.env("PWD", dir.as_os_str());
+    }
+    let output = run_with_timeout(command, CLI_PROBE_TIMEOUT)?;
+    if !output.status?.success() {
+        return None;
+    }
+    opencode_session_list_contains(&String::from_utf8(output.stdout).ok()?, session_id)
+}
+
+fn opencode_session_list_contains(output: &str, session_id: &str) -> Option<bool> {
+    let sessions: Vec<serde_json::Value> = serde_json::from_str(output.trim()).ok()?;
+    Some(
+        sessions
+            .iter()
+            .any(|session| session.get("id").and_then(|id| id.as_str()) == Some(session_id)),
+    )
+}
+
 /// Whether the installed `pi` CLI advertises the `max` thinking level in its
 /// `--thinking` flag. Re-added in pi 0.80.6 (verified against pi 0.79.2 on
 /// 2026-09-19, which lists only `off, minimal, low, medium, high, xhigh`).
@@ -360,21 +403,43 @@ fn pi_help_lists_no_mcp_flag(help_text: &str) -> bool {
     help_text.contains("--no-mcp")
 }
 
-/// Whether the installed `kiro-cli` accepts `--agent-engine <v1|v2|v3>` on
-/// `chat`.
+/// How the installed `kiro-cli` can be kept on the V2 engine, probed from
+/// `kiro-cli chat --help`.
 ///
-/// kiro-cli now ships a V3 engine alongside V2 (still the default), and
-/// accepting the V3 startup offer persists `chat.agentEngine = v3`.
+/// kiro-cli ships a V3 engine alongside V2 (still the default as of 2.32.0),
+/// and accepting the V3 startup offer persists `chat.agentEngine = v3`.
 /// The Pair's adapter is built for V2 semantics — above all the mentor's
 /// `--trust-tools=read,grep,glob`, whose V2 tool names match nothing under
 /// V3's exact internal ids (`read_file`, …), which would silently drop the
-/// read-only pre-approval. Pinning `--agent-engine v2` on every turn keeps
-/// the adapter stable regardless of the saved setting. CLIs without the flag
-/// (pre-V3) have no engine to drift to, so the probe keeps them flag-free.
-/// Probed from `kiro-cli chat --help` (once per binary, see `ProbeCache`).
-pub(crate) fn kiro_supports_agent_engine_flag() -> bool {
+/// read-only pre-approval. Pinning the engine on every turn keeps the
+/// adapter stable regardless of the saved setting.
+///
+/// AWS has announced CLI 3.0 makes V3 the default at the end of October
+/// 2026 (2.30.0 changelog; 2.32.0's help already calls `--v2` "the pre-3.0
+/// default"). If 3.0 also renames or drops the V2 pin, a probe that only
+/// asked "is `--agent-engine` there?" would go quiet and the mentor would
+/// run writable on V3 — so the probe distinguishes "pinnable" from
+/// "V3-present but unpinnable", and the adapter refuses mentor turns in the
+/// latter case instead of degrading silently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum KiroEnginePin {
+    /// `chat --v2` (shorthand verified in 2.32.0's help).
+    V2Shorthand,
+    /// `chat --agent-engine v2`.
+    AgentEngineFlag,
+    /// No V3 anywhere in the help: a pre-V3 CLI whose only engine is V2-era.
+    NotNeeded,
+    /// V3 is present but neither V2 pin is: the CLI can no longer be held
+    /// on the engine the adapter's tool names were written for.
+    Unavailable,
+    /// The probe could not read the help (CLI missing or hung). Keeps the
+    /// pre-probe behavior: no pin, no refusal.
+    Unknown,
+}
+
+pub(crate) fn kiro_engine_pin() -> KiroEnginePin {
     let Some(command_path) = which_binary("kiro-cli") else {
-        return false;
+        return KiroEnginePin::Unknown;
     };
 
     KIRO_AGENT_ENGINE_SUPPORT
@@ -385,14 +450,37 @@ pub(crate) fn kiro_supports_agent_engine_flag() -> bool {
                 &homedir(),
                 CLI_PROBE_TIMEOUT,
             )
-            .map(|help_text| kiro_help_lists_agent_engine(&help_text))
+            .map(|help_text| kiro_engine_pin_from_help(&help_text))
         })
-        .unwrap_or(false)
+        .unwrap_or(KiroEnginePin::Unknown)
 }
 
-fn kiro_help_lists_agent_engine(help_text: &str) -> bool {
-    help_text.contains("--agent-engine")
+fn kiro_engine_pin_from_help(help_text: &str) -> KiroEnginePin {
+    // 2.32.0's `chat --help` advertises both pins:
+    //   --agent-engine <ENGINE>  Agent engine to use: "v1", "v2" (default), or "v3"
+    //   --v2                     Use the V2 agent engine (the pre-3.0 default)
+    //   --v3                     Launch the next generation Kiro agent
+    // The shorthand wins: it is the spelling 2.32 documents for exactly this
+    // purpose, and it survives even if `--agent-engine`'s value list changes.
+    if help_text.contains("--v2") {
+        return KiroEnginePin::V2Shorthand;
+    }
+    if help_text.contains("--agent-engine") {
+        return KiroEnginePin::AgentEngineFlag;
+    }
+    // No pin at all. Any V3 trace means this CLI can drift (or default) to
+    // an engine whose tool ids the adapter does not speak; a help with no
+    // engine vocabulary at all is a pre-V3 CLI that cannot drift.
+    if help_text.contains("--v3") || help_text.contains("V3") {
+        KiroEnginePin::Unavailable
+    } else {
+        KiroEnginePin::NotNeeded
+    }
 }
+
+/// The refusal shown when Kiro can no longer be pinned to the V2 engine and
+/// a mentor turn would silently lose its read-only guarantee.
+pub(crate) const KIRO_V2_PIN_UNAVAILABLE_MESSAGE: &str = "The installed kiro-cli exposes the V3 engine but no way to pin the V2 engine (`--agent-engine v2` / `--v2`). The mentor's read-only guarantee relies on V2 tool names, so this turn was refused instead of running the mentor with write access. Update The Pair, or use a kiro-cli release that still supports the V2 pin.";
 
 /// Reasoning levels the installed Codex advertises per model, keyed by slug.
 pub(crate) type CodexReasoningCatalog = HashMap<String, Vec<String>>;
@@ -471,6 +559,36 @@ fn parse_codex_version(output: &str) -> Option<(u32, u32, u32)> {
             .collect();
         Some((major, minor, patch_digits.parse().ok()?))
     })
+}
+
+/// Every slug `codex debug models` advertises, regardless of effort levels:
+/// the live catalog of what the account can actually run. `None` when the
+/// CLI is missing, too old for `debug models`, or the output doesn't parse.
+/// Runs the command itself (the reasoning-levels probe drops level-less
+/// models, so its keys are a subset).
+pub(crate) fn codex_catalog_slugs() -> Option<std::collections::HashSet<String>> {
+    let command_path = which_binary("codex")?;
+    let output = capture_command_output_with_timeout(
+        &command_path,
+        &["debug", "models"],
+        &homedir(),
+        CLI_PROBE_TIMEOUT,
+    )?;
+    parse_codex_catalog_slugs(&output)
+}
+
+fn parse_codex_catalog_slugs(output: &str) -> Option<std::collections::HashSet<String>> {
+    let models = serde_json::from_str::<serde_json::Value>(output)
+        .ok()?
+        .get("models")?
+        .as_array()?
+        .clone();
+    let slugs: std::collections::HashSet<String> = models
+        .iter()
+        .filter_map(|model| model.get("slug").and_then(|v| v.as_str()))
+        .map(String::from)
+        .collect();
+    (!slugs.is_empty()).then_some(slugs)
 }
 
 /// Parse `codex debug models` into slug → effort list. Models that advertise
@@ -1015,7 +1133,10 @@ fn is_claude_model_id(value: &str) -> bool {
     value.starts_with("claude-")
 }
 
-fn discover_codex_model_ids(home: &std::path::Path) -> Vec<String> {
+fn discover_codex_model_ids(
+    home: &std::path::Path,
+    live_catalog: Option<&std::collections::HashSet<String>>,
+) -> Vec<String> {
     let predicate = |value: &str| is_codex_model_id(value);
     let mut model_ids = Vec::new();
     let config_path = home.join(".codex/config.toml");
@@ -1042,6 +1163,16 @@ fn discover_codex_model_ids(home: &std::path::Path) -> Vec<String> {
     // file mentions them.
     let hidden = codex_hidden_model_slugs(&models_cache_path);
     model_ids.retain(|id| !hidden.contains(id));
+
+    // config.toml and session history keep ids long after the account's
+    // catalog drops them (observed 2026-10-19: config.toml pinned
+    // `gpt-5.6-sol`, absent from 0.163.0's catalog — picking it fails every
+    // turn with `turn.failed`). When the live catalog could be read, only
+    // ids it still advertises survive. A failed probe keeps the heuristic
+    // list untouched: an unfiltered picker beats an empty one.
+    if let Some(catalog) = live_catalog {
+        model_ids.retain(|id| catalog.contains(id));
+    }
 
     model_ids
 }
@@ -1562,7 +1693,7 @@ impl ProviderRegistry {
             // runs on the async stdout loop, finds it cached.
             codex_reports_session_usage();
             build_detected_models(
-                discover_codex_model_ids(&homedir),
+                discover_codex_model_ids(&homedir, codex_catalog_slugs().as_ref()),
                 "openai",
                 &subscription_label,
             )
@@ -1858,7 +1989,8 @@ impl ProviderRegistry {
     }
 
     pub fn detect_grok() -> DetectedProviderProfile {
-        let installed = which_binary_exists("grok");
+        let grok_bin = which_binary("grok");
+        let installed = grok_bin.is_some();
         let homedir = homedir();
 
         let grok_dir = crate::config_paths::grok_home_dir(Some(&homedir))
@@ -1872,8 +2004,18 @@ impl ProviderRegistry {
                 .map(|v| !v.trim().is_empty())
                 .unwrap_or(false);
 
+        // `grok models` prints the live catalog and works without auth
+        // (verified against 1.0.44: it notes "You are not authenticated."
+        // and still lists the models), so a new model reaching the CLI is
+        // visible without an app update. The hardcoded pair stays as the
+        // fallback for when the command can't run or prints nothing parseable.
+        let live_models = grok_bin.as_deref().and_then(|bin| {
+            capture_command_output_with_timeout(bin, &["models"], &homedir, CLI_PROBE_TIMEOUT)
+                .map(|output| parse_grok_models_output(&output))
+                .filter(|ids| !ids.is_empty())
+        });
         let models = if installed {
-            grok_model_options(&grok_dir)
+            grok_model_options(&grok_dir, live_models.as_deref())
         } else {
             Vec::new()
         };
@@ -2075,17 +2217,90 @@ fn parse_kimi_model_aliases(content: &str) -> Vec<DetectedModelOption> {
     models
 }
 
-/// Build Grok Build's model list: the built-in models (Grok Build 1.0.40's
-/// bundled `default_models.json`, default `grok-4.6`) plus any custom models
-/// declared in `$GROK_HOME/config.toml` (default `~/.grok`). Custom
+/// Parse `grok models` output (verified against 1.0.44):
+///
+/// ```text
+/// You are not authenticated.
+///
+/// Default model: grok-4.6
+///
+/// Available models:
+///   * grok-4.6 (default)
+///   - grok-4.5
+/// ```
+///
+/// Only lines after the `Available models:` header count; each carries a
+/// `*` (default) or `-` marker and a model id, optionally followed by a
+/// parenthetical. The `Default model:` line repeats the starred entry, so
+/// ids are deduplicated.
+fn parse_grok_models_output(output: &str) -> Vec<String> {
+    let mut ids: Vec<String> = Vec::new();
+    let mut in_list = false;
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if !in_list {
+            in_list = trimmed.starts_with("Available models");
+            continue;
+        }
+        let Some(rest) = trimmed
+            .strip_prefix("* ")
+            .or_else(|| trimmed.strip_prefix("- "))
+        else {
+            continue;
+        };
+        let id = rest.split_whitespace().next().unwrap_or("");
+        if !id.is_empty() && !ids.iter().any(|seen| seen == id) {
+            ids.push(id.to_string());
+        }
+    }
+    ids
+}
+
+/// Display label for a built-in Grok id. The two ids that predate the live
+/// `grok models` probe keep the labels the picker has always shown; any
+/// newer id gets the same shape (`grok-4.7-fast` → `Grok 4.7 Fast`), and an
+/// id outside the `grok-` family keeps its raw spelling.
+fn grok_builtin_display_name(model_id: &str) -> String {
+    match model_id {
+        "grok-4.6" => "Grok 4.6".to_string(),
+        "grok-4.5" => "Grok 4.5".to_string(),
+        _ => match model_id.strip_prefix("grok-") {
+            Some(rest) => {
+                let words = rest
+                    .split('-')
+                    .map(|word| {
+                        let mut chars = word.chars();
+                        match chars.next() {
+                            Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                            None => String::new(),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                format!("Grok {words}")
+            }
+            None => model_id.to_string(),
+        },
+    }
+}
+
+/// Build Grok Build's model list: the built-in models plus any custom
+/// models declared in `$GROK_HOME/config.toml` (default `~/.grok`). Custom
 /// `[model.<alias>]` sections are addressed by alias through `-m`; `name`
-/// provides the display label.
-fn grok_model_options(grok_dir: &std::path::Path) -> Vec<DetectedModelOption> {
-    let mut models: Vec<DetectedModelOption> = [("grok-4.6", "Grok 4.6"), ("grok-4.5", "Grok 4.5")]
+/// provides the display label. `live` carries the ids `grok models`
+/// reported; when the probe couldn't run, the built-ins fall back to the
+/// last verified pair (Grok Build 1.0.40's bundled `default_models.json`,
+/// default `grok-4.6`).
+fn grok_model_options(grok_dir: &std::path::Path, live: Option<&[String]>) -> Vec<DetectedModelOption> {
+    let builtin: Vec<String> = match live {
+        Some(ids) => ids.to_vec(),
+        None => vec!["grok-4.6".to_string(), "grok-4.5".to_string()],
+    };
+    let mut models: Vec<DetectedModelOption> = builtin
         .into_iter()
-        .map(|(model_id, display_name)| DetectedModelOption {
-            model_id: model_id.to_string(),
-            display_name: display_name.to_string(),
+        .map(|model_id| DetectedModelOption {
+            display_name: grok_builtin_display_name(&model_id),
+            model_id,
             source_provider: Some("xai".to_string()),
             family: None,
             subscription_label: "xai".to_string(),
@@ -2249,8 +2464,15 @@ fn parse_pi_list_models(output: &str) -> Vec<DetectedModelOption> {
         .collect()
 }
 
-/// Discover Kiro models via `kiro-cli chat --list-models`. The CLI prints a
-/// header plus one row per model (kiro-cli 2.23.0), the default marked `*`:
+/// Discover Kiro models via `kiro-cli chat --list-models`.
+///
+/// The JSON form comes first: 2.32.0's `chat --help` advertises
+/// `-f, --format <plain|json|json-pretty>` "for list commands (used with
+/// --list-models and --list-sessions)", and AWS's CLI reference calls it the
+/// scripting output. Its exact schema is not documented, so the parser
+/// accepts the plausible shapes and any failure falls back to the plain
+/// table, which prints a header plus one row per model (kiro-cli 2.23.0),
+/// the default marked `*`:
 ///
 /// ```text
 /// Available models (* = default):
@@ -2258,6 +2480,20 @@ fn parse_pi_list_models(output: &str) -> Vec<DetectedModelOption> {
 ///   claude-sonnet-4.5   1.30x credits   The Claude Sonnet 4.5 model
 /// ```
 fn discover_kiro_models(kiro_bin: &Path) -> Vec<DetectedModelOption> {
+    let json_output = capture_command_output_with_timeout(
+        kiro_bin,
+        &["chat", "--list-models", "--format", "json"],
+        &homedir(),
+        Duration::from_secs(8),
+    );
+    if let Some(models) = json_output
+        .as_deref()
+        .and_then(parse_kiro_model_list_json)
+        .filter(|models| !models.is_empty())
+    {
+        return models;
+    }
+
     let output = capture_command_output_with_timeout(
         kiro_bin,
         &["chat", "--list-models"],
@@ -2267,6 +2503,59 @@ fn discover_kiro_models(kiro_bin: &Path) -> Vec<DetectedModelOption> {
     .unwrap_or_default();
 
     parse_kiro_model_list(&output)
+}
+
+/// Parse `kiro-cli chat --list-models --format json` output. The schema is
+/// undocumented, so entries are accepted from a top-level array or a
+/// `models` member, each either a bare id string or an object carrying the
+/// id under a common key (`id`, `modelId`, `model_id`, `name`) and an
+/// optional display label (`displayName`, `display_name`, `label`). A model
+/// flagged `hidden: true` is skipped when that field is present. Anything
+/// else returns `None` so the caller falls back to the plain-text table —
+/// an unparseable JSON attempt must never lose models the table would find.
+fn parse_kiro_model_list_json(output: &str) -> Option<Vec<DetectedModelOption>> {
+    let value: serde_json::Value = serde_json::from_str(output.trim()).ok()?;
+    let entries = match &value {
+        serde_json::Value::Array(entries) => entries,
+        serde_json::Value::Object(_) => value.get("models")?.as_array()?,
+        _ => return None,
+    };
+
+    let mut models: Vec<DetectedModelOption> = Vec::new();
+    for entry in entries {
+        let (model_id, display_name) = match entry {
+            serde_json::Value::String(id) => (id.as_str(), None),
+            serde_json::Value::Object(_) => {
+                if entry.get("hidden").and_then(|v| v.as_bool()) == Some(true) {
+                    continue;
+                }
+                let id = ["id", "modelId", "model_id", "name"]
+                    .iter()
+                    .find_map(|key| entry.get(key).and_then(|v| v.as_str()))?;
+                let display = ["displayName", "display_name", "label"]
+                    .iter()
+                    .find_map(|key| entry.get(key).and_then(|v| v.as_str()))
+                    .filter(|label| !label.trim().is_empty());
+                (id, display)
+            }
+            _ => continue,
+        };
+        if !is_plausible_model_id(model_id)
+            || models.iter().any(|model| model.model_id == model_id)
+        {
+            continue;
+        }
+        models.push(DetectedModelOption {
+            model_id: model_id.to_string(),
+            display_name: display_name.unwrap_or(model_id).to_string(),
+            source_provider: Some("kiro".to_string()),
+            family: None,
+            subscription_label: "kiro".to_string(),
+            supports_pair_execution: true,
+            runnable: true,
+        });
+    }
+    Some(models)
 }
 
 fn parse_kiro_model_list(output: &str) -> Vec<DetectedModelOption> {
@@ -2447,6 +2736,52 @@ mod tests {
     }
 
     #[test]
+    fn codex_discovery_drops_ids_the_live_catalog_no_longer_has() {
+        // config.toml keeps a pinned model long after the account's catalog
+        // drops it (observed 2026-10-19: `gpt-5.6-sol` pinned, absent from
+        // 0.163.0's catalog). With a live catalog, only advertised ids
+        // survive; without one (probe failed), the heuristic list is kept.
+        let temp_home = std::env::temp_dir().join(format!("the-pair-test-{}", Uuid::new_v4()));
+        let codex_dir = temp_home.join(".codex");
+        fs::create_dir_all(&codex_dir).expect("failed to create temp codex dir");
+        fs::write(
+            codex_dir.join("config.toml"),
+            "model = \"gpt-5.6-sol\"\n",
+        )
+        .expect("failed to write codex config");
+        fs::write(
+            codex_dir.join("models_cache.json"),
+            r#"{"models":[{"slug":"gpt-6-luna"},{"slug":"gpt-5.6-terra"}]}"#,
+        )
+        .expect("failed to write models cache");
+
+        let catalog: std::collections::HashSet<String> =
+            ["gpt-6-luna", "gpt-5.6-terra"].iter().map(|s| s.to_string()).collect();
+        let filtered = discover_codex_model_ids(&temp_home, Some(&catalog));
+        assert!(
+            !filtered.contains(&"gpt-5.6-sol".to_string()),
+            "retired config id must not surface: {filtered:?}"
+        );
+        assert!(filtered.contains(&"gpt-6-luna".to_string()), "{filtered:?}");
+
+        let unfiltered = discover_codex_model_ids(&temp_home, None);
+        assert!(
+            unfiltered.contains(&"gpt-5.6-sol".to_string()),
+            "without a catalog the heuristic list is unchanged: {unfiltered:?}"
+        );
+
+        // The slug parser keeps level-less models (unlike the ladder parser).
+        let slugs = parse_codex_catalog_slugs(
+            r#"{"models":[{"slug":"gpt-6-luna"},{"slug":"no-levels","supported_reasoning_levels":[]}]}"#,
+        )
+        .expect("slugs should parse");
+        assert!(slugs.contains("no-levels"));
+        assert!(parse_codex_catalog_slugs("not json").is_none());
+
+        fs::remove_dir_all(&temp_home).ok();
+    }
+
+    #[test]
     fn opencode_help_detects_variant_syntax() {
         // OpenCode 2.x: variant suffix on --model id.
         assert_eq!(
@@ -2516,6 +2851,37 @@ mod tests {
         assert_eq!(parse_opencode_major_version("1.18.30"), Some(1));
         assert_eq!(parse_opencode_major_version("opencode dev build"), None);
         assert_eq!(parse_opencode_major_version(""), None);
+    }
+
+    #[test]
+    fn opencode_session_list_contains_reads_ids_from_the_json_array() {
+        // Shape captured live from `opencode session list --format json`
+        // (2.0.14 and 2.0.32, 2026-10-19).
+        let list = r#"[
+          {"id": "ses_eb0288166ffeJLP0QJZmWfOb6d", "updated": 1792340885243,
+           "created": 1792340885169, "projectId": "644ce6e0",
+           "directory": "/private/tmp/proj"}
+        ]"#;
+        assert_eq!(
+            opencode_session_list_contains(list, "ses_eb0288166ffeJLP0QJZmWfOb6d"),
+            Some(true)
+        );
+        assert_eq!(
+            opencode_session_list_contains(list, "ses_deleted"),
+            Some(false)
+        );
+        assert_eq!(opencode_session_list_contains("[]", "ses_any"), Some(false));
+        // Anything unparsable is inconclusive, never "missing": 1.18.32
+        // prints nothing at all for an empty store, and `-n 0` prints help.
+        assert_eq!(opencode_session_list_contains("", "ses_any"), None);
+        assert_eq!(
+            opencode_session_list_contains("DESCRIPTION\n  List top-level sessions", "ses_any"),
+            None
+        );
+        assert_eq!(
+            opencode_session_list_contains(r#"{"id": "ses_any"}"#, "ses_any"),
+            None
+        );
     }
 
     #[test]
@@ -2779,6 +3145,49 @@ esac
     }
 
     #[test]
+    fn parse_kiro_model_list_json_accepts_plausible_shapes_and_rejects_the_rest() {
+        // The `--format json` schema is undocumented (flag verified in
+        // 2.32.0's `chat --help`); the parser covers the plausible shapes so
+        // a schema guess can only win over the table, never lose to it.
+        let ids = |output: &str| {
+            parse_kiro_model_list_json(output)
+                .map(|models| models.into_iter().map(|m| m.model_id).collect::<Vec<_>>())
+        };
+        assert_eq!(
+            ids(r#"[{"id": "auto"}, {"id": "claude-sonnet-4.5", "displayName": "Sonnet 4.5"}]"#),
+            Some(vec!["auto".to_string(), "claude-sonnet-4.5".to_string()])
+        );
+        assert_eq!(
+            ids(r#"{"models": [{"modelId": "claude-haiku-4.5"}]}"#),
+            Some(vec!["claude-haiku-4.5".to_string()])
+        );
+        assert_eq!(
+            ids(r#"["auto", "claude-sonnet-4.5"]"#),
+            Some(vec!["auto".to_string(), "claude-sonnet-4.5".to_string()])
+        );
+        // Hidden entries and duplicates don't surface.
+        assert_eq!(
+            ids(r#"[{"id": "auto"}, {"id": "internal-x", "hidden": true}, {"id": "auto"}]"#),
+            Some(vec!["auto".to_string()])
+        );
+        // Display label rides along when present.
+        let models = parse_kiro_model_list_json(
+            r#"[{"id": "claude-sonnet-4.5", "displayName": "Claude Sonnet 4.5"}]"#,
+        )
+        .expect("object entries parse");
+        assert_eq!(models[0].display_name, "Claude Sonnet 4.5");
+
+        // Anything else is inconclusive — the caller falls back to the table.
+        assert_eq!(ids("not json"), None);
+        assert_eq!(ids(r#"{"unexpected": []}"#), None);
+        assert_eq!(ids(r#""just a string""#), None);
+        assert_eq!(ids(""), None);
+        // An array with a non-string, non-object entry parses but yields no
+        // models from that entry.
+        assert_eq!(ids(r#"[42, {"id": "auto"}]"#), Some(vec!["auto".to_string()]));
+    }
+
+    #[test]
     fn parse_pi_list_models_reads_table_rows_as_provider_model_ids() {
         // Verbatim `pi --list-models` layout (pi 0.79.2), incl. trailing padding.
         let output = "provider              model                       context  max-out  thinking  images\n\
@@ -2885,6 +3294,34 @@ display_name = "bare table, not an alias"
 "#;
 
         assert!(parse_kimi_model_aliases(config).is_empty());
+    }
+
+    #[test]
+    fn parse_grok_models_output_reads_the_available_list() {
+        // Captured verbatim from `grok models` on 1.0.44 while
+        // unauthenticated (2026-10-19): the command still lists models.
+        let output = "You are not authenticated.\n\nDefault model: grok-4.6\n\nAvailable models:\n  * grok-4.6 (default)\n  - grok-4.5\n";
+        assert_eq!(
+            parse_grok_models_output(output),
+            vec!["grok-4.6".to_string(), "grok-4.5".to_string()]
+        );
+
+        // A future id rides through, and the `Default model:` line does not
+        // duplicate the starred entry. Lines after the header that carry no
+        // marker are not model rows.
+        let output = "Default model: grok-4.7\n\nAvailable models:\n  * grok-4.7 (default)\nRun `grok login` for more models.\n  - grok-4.7-fast\n";
+        assert_eq!(
+            parse_grok_models_output(output),
+            vec!["grok-4.7".to_string(), "grok-4.7-fast".to_string()]
+        );
+
+        // Without the header nothing is a model id, so detect falls back.
+        assert!(parse_grok_models_output("error: boom\n").is_empty());
+        assert!(parse_grok_models_output("").is_empty());
+
+        assert_eq!(grok_builtin_display_name("grok-4.6"), "Grok 4.6");
+        assert_eq!(grok_builtin_display_name("grok-4.7-fast"), "Grok 4.7 Fast");
+        assert_eq!(grok_builtin_display_name("custom-thing"), "custom-thing");
     }
 
     #[test]
@@ -3626,15 +4063,41 @@ exit 0
     }
 
     #[test]
-    fn kiro_agent_engine_detection_reads_the_chat_help_text() {
-        // kiro-cli 2.31's `chat --help` carries the engine selector.
-        assert!(kiro_help_lists_agent_engine(
-            "  --agent-engine <v1|v2|v3>  Agent engine to use\n  --no-interactive\n"
-        ));
-        // Pre-V3 CLIs list neither the flag nor the engines.
-        assert!(!kiro_help_lists_agent_engine(
-            "  --no-interactive  Run chat without a TUI\n  --model <MODEL>\n"
-        ));
+    fn kiro_engine_pin_detection_reads_the_chat_help_text() {
+        // kiro-cli 2.32.0's real `chat --help` (captured 2026-10-19) carries
+        // both pins; the documented shorthand wins.
+        let v232 = "      --agent-engine <ENGINE>\n          Agent engine to use: \"v1\", \"v2\" (default), or \"v3\"\n\n      --v3\n          Launch the next generation Kiro agent\n\n      --v2\n          Use the V2 agent engine (the pre-3.0 default)\n";
+        assert_eq!(
+            kiro_engine_pin_from_help(v232),
+            KiroEnginePin::V2Shorthand
+        );
+        // A help with only the long flag (the 2.31 shape).
+        assert_eq!(
+            kiro_engine_pin_from_help(
+                "  --agent-engine <v1|v2|v3>  Agent engine to use\n  --no-interactive\n"
+            ),
+            KiroEnginePin::AgentEngineFlag
+        );
+        // The CLI 3.0 shape this probe exists for: V3 present, no V2 pin.
+        assert_eq!(
+            kiro_engine_pin_from_help(
+                "      --v3\n          Launch the next generation Kiro agent\n  --no-interactive\n"
+            ),
+            KiroEnginePin::Unavailable
+        );
+        assert_eq!(
+            kiro_engine_pin_from_help(
+                "      --sessions\n          Launch the session dashboard (V3/KAS only)\n"
+            ),
+            KiroEnginePin::Unavailable
+        );
+        // Pre-V3 CLIs list neither the pins nor any engine vocabulary.
+        assert_eq!(
+            kiro_engine_pin_from_help(
+                "  --no-interactive  Run chat without a TUI\n  --model <MODEL>\n"
+            ),
+            KiroEnginePin::NotNeeded
+        );
     }
 
     #[cfg(target_os = "windows")]
@@ -3954,6 +4417,178 @@ done
         );
 
         let _ = fs::remove_dir_all(temp_home);
+    }
+
+    /// Run `body` with HOME/PATH pinned at a temp home whose `.local/bin`
+    /// comes first, so stub CLIs win over anything installed on the machine.
+    /// Returns the value `body` produced; env is restored either way.
+    #[cfg(unix)]
+    fn with_temp_cli_home<T>(body: impl FnOnce(&Path, &Path) -> T) -> T {
+        let _guard = crate::test_env::lock_env();
+        let temp_home = std::env::temp_dir().join(format!("the-pair-test-{}", Uuid::new_v4()));
+        let bin_dir = temp_home.join(".local/bin");
+        fs::create_dir_all(&bin_dir).expect("failed to create temp bin dir");
+
+        let saved: Vec<(&str, Option<std::ffi::OsString>)> = ["HOME", "PATH", "GROK_HOME"]
+            .iter()
+            .map(|key| (*key, std::env::var_os(key)))
+            .collect();
+        let original_path = std::env::var_os("PATH").unwrap_or_default();
+        std::env::set_var("HOME", &temp_home);
+        std::env::set_var(
+            "PATH",
+            format!("{}:{}", bin_dir.display(), original_path.to_string_lossy()),
+        );
+        std::env::remove_var("GROK_HOME");
+
+        let result = body(&temp_home, &bin_dir);
+
+        for (key, value) in saved {
+            match value {
+                Some(value) => std::env::set_var(key, value),
+                None => std::env::remove_var(key),
+            }
+        }
+        let _ = fs::remove_dir_all(&temp_home);
+        result
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn opencode_session_exists_reads_the_cli_session_list() {
+        // Shape captured live from opencode 2.0.14/2.0.32 (2026-10-19): a
+        // JSON array of `{id, directory, …}` for the cwd's project.
+        let results = with_temp_cli_home(|temp_home, bin_dir| {
+            write_executable_script(
+                bin_dir,
+                "opencode",
+                r#"#!/bin/sh
+if [ "$1" = "session" ] && [ "$2" = "list" ]; then
+  echo '[{"id":"ses_live","directory":"'"$PWD"'"}]'
+  exit 0
+fi
+exit 1
+"#,
+            );
+            (
+                opencode_session_exists("ses_live", Some(temp_home)),
+                opencode_session_exists("ses_deleted", Some(temp_home)),
+                opencode_session_exists("ses_live", None),
+            )
+        });
+        assert_eq!(results, (Some(true), Some(false), Some(true)));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn codex_catalog_slugs_reads_debug_models() {
+        let slugs = with_temp_cli_home(|_, bin_dir| {
+            write_executable_script(
+                bin_dir,
+                "codex",
+                r#"#!/bin/sh
+if [ "$1" = "debug" ] && [ "$2" = "models" ]; then
+  echo '{"models":[{"slug":"gpt-6-luna"},{"slug":"gpt-5.6-terra","supported_reasoning_levels":[]}]}'
+  exit 0
+fi
+exit 1
+"#,
+            );
+            codex_catalog_slugs()
+        });
+        let slugs = slugs.expect("catalog should parse");
+        assert!(slugs.contains("gpt-6-luna") && slugs.contains("gpt-5.6-terra"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn discover_kiro_models_prefers_json_and_falls_back_to_the_table() {
+        let bin_dir = std::env::temp_dir().join(format!("the-pair-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&bin_dir).unwrap();
+        let kiro = write_executable_script(
+            &bin_dir,
+            "kiro-cli",
+            r#"#!/bin/sh
+case "$*" in
+  *"--format json"*) echo '[{"id":"auto"},{"id":"claude-sonnet-4.5","displayName":"Claude Sonnet 4.5"}]' ;;
+  *) printf 'Available models (* = default):\n* auto   1.00x credits   Models chosen by task\n' ;;
+esac
+"#,
+        );
+        let models = discover_kiro_models(&kiro);
+        let ids: Vec<&str> = models.iter().map(|m| m.model_id.as_str()).collect();
+        assert_eq!(ids, vec!["auto", "claude-sonnet-4.5"]);
+        assert_eq!(models[1].display_name, "Claude Sonnet 4.5");
+
+        // A CLI whose JSON attempt fails still yields the table's models.
+        let legacy = write_executable_script(
+            &bin_dir,
+            "kiro-cli-legacy",
+            r#"#!/bin/sh
+case "$*" in
+  *"--format"*) exit 1 ;;
+  *) printf 'Available models (* = default):\n* auto   1.00x credits   Models chosen by task\n  claude-haiku-4.5   0.40x credits   Haiku\n' ;;
+esac
+"#,
+        );
+        let ids: Vec<String> = discover_kiro_models(&legacy)
+            .into_iter()
+            .map(|m| m.model_id)
+            .collect();
+        assert_eq!(ids, vec!["auto".to_string(), "claude-haiku-4.5".to_string()]);
+
+        fs::remove_dir_all(&bin_dir).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn detect_grok_prefers_the_live_models_catalog() {
+        let profile = with_temp_cli_home(|_, bin_dir| {
+            write_executable_script(
+                bin_dir,
+                "grok",
+                r#"#!/bin/sh
+if [ "$1" = "models" ]; then
+  printf 'Default model: grok-4.7\n\nAvailable models:\n  * grok-4.7 (default)\n  - grok-4.7-fast\n'
+  exit 0
+fi
+exit 0
+"#,
+            );
+            ProviderRegistry::detect_grok()
+        });
+        let ids: Vec<&str> = profile
+            .current_models
+            .iter()
+            .map(|m| m.model_id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["grok-4.7", "grok-4.7-fast"]);
+        assert_eq!(profile.current_models[1].display_name, "Grok 4.7 Fast");
+    }
+
+    #[test]
+    fn grok_model_options_fall_back_to_the_verified_pair_offline() {
+        let temp_home = std::env::temp_dir().join(format!("the-pair-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&temp_home).unwrap();
+        let models = grok_model_options(&temp_home.join(".grok"), None);
+        let ids: Vec<&str> = models.iter().map(|m| m.model_id.as_str()).collect();
+        assert_eq!(ids, vec!["grok-4.6", "grok-4.5"]);
+        assert_eq!(models[0].display_name, "Grok 4.6");
+
+        // A custom config model rides along with the live catalog.
+        let grok_dir = temp_home.join(".grok");
+        fs::create_dir_all(&grok_dir).unwrap();
+        fs::write(
+            grok_dir.join("config.toml"),
+            "[model.my-alias]\nmodel = \"x\"\nname = \"My Alias\"\n",
+        )
+        .unwrap();
+        let live = vec!["grok-4.7".to_string()];
+        let models = grok_model_options(&grok_dir, Some(&live));
+        let ids: Vec<&str> = models.iter().map(|m| m.model_id.as_str()).collect();
+        assert_eq!(ids, vec!["grok-4.7", "my-alias"]);
+
+        fs::remove_dir_all(&temp_home).ok();
     }
 
     #[cfg(unix)]

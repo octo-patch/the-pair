@@ -202,7 +202,11 @@ const NULL_DEVICE: &str = "/dev/null";
 
 /// Lines aider prints on startup before the reply (aider-chat 0.86.2):
 /// version, models, repo and repo-map summary, and git identity hints.
+/// The dumb-terminal notice (`aider/io.py`, when `$TERM` is `dumb`/`unknown`)
+/// precedes even the version line; without it here the skip loop would stop
+/// at line 1 and the whole banner would become the "reply".
 const AIDER_BANNER_PREFIXES: &[&str] = &[
+    "Detected dumb terminal",
     "Aider v",
     "Main model:",
     "Weak model:",
@@ -369,7 +373,10 @@ mod tests {
     #[test]
     fn aider_failed_model_call_is_a_turn_error_not_a_reply() {
         // Captured from aider-chat 0.86.2 with an invalid OpenAI key: exit 0.
+        // The dumb-terminal notice leads the output when `$TERM` is dumb/
+        // unknown (captured 2026-10-19); it must not stop the banner skip.
         let output = "\
+Detected dumb terminal, disabling fancy input and pretty output.
 Update git name with: git config user.name \"Your Name\"
 Update git email with: git config user.email \"you@example.com\"
 Aider v0.86.2

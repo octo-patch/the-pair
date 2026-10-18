@@ -154,17 +154,22 @@ impl Provider for ClaudeProvider {
         // 4.5), Claude Code silently starts in the default (manual) mode, where
         // every edit is denied while the result still reports success.
         // Note: recent CLI versions renamed the `--permission-mode` choice
-        // "default" to "manual", but the init event still reports
+        // "default" to "manual"; the init event still reported
         // `permissionMode: "default"` on the downgrade (verified live against
-        // claude-code 2.1.283 with `--model haiku --permission-mode auto`).
+        // claude-code 2.1.283 with `--model haiku --permission-mode auto`),
+        // but 2.1.302's help lists only `manual`, so accept both spellings —
+        // either one means the requested `auto`/`plan` never took effect.
         if event_type == Some("system")
             && event.get("subtype").and_then(|v| v.as_str()) == Some("init")
-            && event.get("permissionMode").and_then(|v| v.as_str()) == Some("default")
+            && matches!(
+                event.get("permissionMode").and_then(|v| v.as_str()),
+                Some("default" | "manual")
+            )
         {
             return Some(
                 "Claude Code auto mode is unavailable for this model or account, so it started \
-                 in manual mode and will deny edits. Pick a model that supports auto mode \
-                 (Sonnet 4.6+, Opus 4.6+, or Fable)."
+                 in manual mode and will deny edits. Pick a recent Sonnet, Opus, or Fable model \
+                 that supports auto mode."
                     .to_string(),
             );
         }
@@ -475,16 +480,24 @@ mod tests {
     #[test]
     fn claude_flags_silent_downgrade_from_auto_to_manual_mode() {
         let provider = ClaudeProvider;
-        let downgraded = serde_json::json!({
-            "type": "system",
-            "subtype": "init",
-            "session_id": "abc",
-            "permissionMode": "default"
-        });
-        assert!(provider
-            .extract_error_detail(&downgraded)
-            .expect("manual-mode fallback is an error")
-            .contains("auto mode is unavailable"));
+        // Both spellings mean the requested mode never took effect: the
+        // init event reported "default" on 2.1.283, while 2.1.302's help
+        // lists only the renamed "manual" choice.
+        for spelling in ["default", "manual"] {
+            let downgraded = serde_json::json!({
+                "type": "system",
+                "subtype": "init",
+                "session_id": "abc",
+                "permissionMode": spelling
+            });
+            assert!(
+                provider
+                    .extract_error_detail(&downgraded)
+                    .expect("manual-mode fallback is an error")
+                    .contains("auto mode is unavailable"),
+                "{spelling} should be flagged"
+            );
+        }
 
         for mode in ["auto", "plan"] {
             let init =

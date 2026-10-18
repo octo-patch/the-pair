@@ -44,9 +44,12 @@ export function getAssignableTaskModels(
  * for model selection and localStorage. Only providers whose bare ids always
  * self-identify (Claude, Gemini) are sent bare. Every other qualifier must
  * survive: Codex `codex-*` slugs, Grok aliases, the Muse settings model and
- * Kimi/Pi/Kiro/Aider aliases carry no provider keyword, so the backend would
- * re-infer them as OpenCode. The Rust providers strip their own qualifier at
- * spawn time. OpenCode IDs already use `provider/model` format internally.
+ * Kimi/Pi/Kiro/Aider aliases do not reliably self-identify — e.g. Kimi's
+ * managed aliases are `kimi-code/<id>`, whose first segment is not a known
+ * qualifier, so inference falls back to OpenCode (a bare user alias like
+ * `kimi/k3` does self-identify). The Rust providers strip their own
+ * qualifier at spawn time. OpenCode IDs already use `provider/model`
+ * format internally.
  */
 function stripProviderPrefix(qualifiedId: string): string {
   if (qualifiedId.includes('/')) {
