@@ -51,6 +51,22 @@
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
 
+  /* Role + state accents and surfaces. Registered here so opacity and
+     variant utilities (`bg-state-running/15`, `hover:text-state-error`,
+     `outline-state-running/60`) are generated; the hand-written
+     `.bg-state-*` / `.border-role-*` mixes below still take precedence. */
+  --color-state-running: var(--state-running);
+  --color-state-done: var(--state-done);
+  --color-state-error: var(--state-error);
+  --color-role-mentor: var(--role-mentor);
+  --color-role-executor: var(--role-executor);
+  --color-role-human: var(--role-human);
+  --color-surface-base: var(--surface-base);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 1px);
   --radius-sm: calc(var(--radius) - 2px);
@@ -230,39 +246,43 @@
  * "works", but flatten everything to terminal-grade surfaces.
  * ────────────────────────────────────────────────────────────── */
 
-.glass-card,
-.glass-modal,
-.glass-panel,
-.glass-toolbar {
-  background: var(--surface-raised);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
+/* Card surfaces live in the components layer so utilities on the same
+   element (`bg-state-running/[0.07]`, `border-state-error/50`) win. */
+@layer components {
+  .glass-card,
+  .glass-modal,
+  .glass-panel,
+  .glass-toolbar {
+    background: var(--surface-raised);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 
-.glass-panel {
-  background: var(--surface-base);
-  border-radius: 0;
-}
+  .glass-panel {
+    background: var(--surface-base);
+    border-radius: 0;
+  }
 
-.glass-toolbar {
-  background: var(--surface-base);
-  border: none;
-  border-bottom: 1px solid var(--rule);
-  border-radius: 0;
-}
+  .glass-toolbar {
+    background: var(--surface-base);
+    border: none;
+    border-bottom: 1px solid var(--rule);
+    border-radius: 0;
+  }
 
-.glass-card-hover {
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease;
-}
+  .glass-card-hover {
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease;
+  }
 
-.glass-card-hover:hover {
-  background: var(--surface-sunken);
-  border-color: var(--rule-strong);
+  .glass-card-hover:hover {
+    background: var(--surface-sunken);
+    border-color: var(--rule-strong);
+  }
 }
 
 .app-chrome {
@@ -523,23 +543,25 @@
   /* keep status dots / circular avatars round */
 }
 
-/* Shell cards: raised surface + medium radius for hub cards, section panels,
+@layer components {
+  /* Shell cards: raised surface + medium radius for hub cards, section panels,
    and modal dialogs. The conversation stream keeps flat hairline surfaces. */
-.shell-card {
-  background: var(--surface-raised);
-  border: 1px solid var(--rule);
-  border-radius: calc(var(--radius) + 6px);
-}
+  .shell-card {
+    background: var(--surface-raised);
+    border: 1px solid var(--rule);
+    border-radius: calc(var(--radius) + 6px);
+  }
 
-.shell-card-hover {
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease;
-}
+  .shell-card-hover {
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease;
+  }
 
-.shell-card-hover:hover {
-  background: var(--surface-sunken);
-  border-color: var(--rule-strong);
+  .shell-card-hover:hover {
+    background: var(--surface-sunken);
+    border-color: var(--rule-strong);
+  }
 }
 
 /* Source-list sidebar: translucent surface with vibrancy over the window

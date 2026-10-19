@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ArrowDownToLine, CheckCircle2, Info, Loader2, RefreshCw, XCircle } from 'lucide-react'
 import { useUpdateStore } from '../store/useUpdateStore'
 import { GlassButton } from './ui/GlassButton'
+import { IconButton } from './ui/IconButton'
 import { cn } from '../lib/utils'
 
 export function UpdateControls(): React.ReactNode {
@@ -71,21 +72,21 @@ export function UpdateControls(): React.ReactNode {
         icon={icon}
         className={cn(
           'whitespace-nowrap',
-          isError && 'border-state-error state-error hover:bg-state-error',
-          isUpToDate && 'border-state-done state-done hover:bg-state-done'
+          isError && 'border-state-error state-error hover:bg-state-error/10',
+          isUpToDate && 'border-state-done state-done hover:bg-state-done/10'
         )}
         title={message || undefined}
       >
         {label}
       </GlassButton>
       {phase === 'available' && version && releaseBody && (
-        <button
+        <IconButton
+          size="md"
           onClick={handleShowReleaseNotes}
-          className="p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-foreground/[0.06] transition-colors cursor-pointer"
-          title="release notes"
+          aria-label={t('updates.releaseNotes')}
         >
-          <Info size={12} />
-        </button>
+          <Info size={13} />
+        </IconButton>
       )}
     </div>
   )
