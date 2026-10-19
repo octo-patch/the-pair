@@ -340,3 +340,72 @@ test('an unranked provider sorts after every ranked one', () => {
     ['muse', UNKNOWN]
   )
 })
+
+test('one model via several CLIs and gateways is one row with one route per gateway', () => {
+  const sonnet = {
+    canonicalKey: 'anthropic::claude-sonnet-4-5',
+    canonicalDisplayName: 'Claude Sonnet 4.5'
+  }
+  const models = buildCanonicalModels([
+    makeModel({
+      provider: 'pi',
+      modelId: 'anthropic/claude-sonnet-4-5',
+      providerLabel: 'Pi',
+      planLabel: 'pi',
+      sourceProvider: 'anthropic',
+      accessLabel: 'Anthropic',
+      ...sonnet
+    }),
+    makeModel({
+      provider: 'pi',
+      modelId: 'github-copilot/claude-sonnet-4.5',
+      providerLabel: 'Pi',
+      planLabel: 'pi',
+      sourceProvider: 'github-copilot',
+      accessLabel: 'Github-copilot',
+      ...sonnet,
+      canonicalDisplayName: 'claude-sonnet-4.5'
+    }),
+    makeModel({
+      provider: 'claude',
+      modelId: 'claude-sonnet-4-5-20250929',
+      providerLabel: 'Claude Code',
+      planLabel: 'subscription-backed',
+      sourceProvider: 'anthropic',
+      ...sonnet
+    })
+  ])
+
+  assert.equal(models.length, 1)
+  assert.equal(models[0].displayName, 'Claude Sonnet 4.5', 'named after the native route')
+  assert.deepEqual(
+    models[0].routes.map((route) => `${route.providerLabel} ${route.accessLabel}`),
+    ['Claude Code ', 'Pi Anthropic', 'Pi Github-copilot']
+  )
+})
+
+test('a native CLI label names the model over every gateway slug, whatever the rank', () => {
+  const grok = { canonicalKey: 'xai::grok-4-6', canonicalDisplayName: 'Grok 4.6' }
+  const models = buildCanonicalModels([
+    makeModel({
+      provider: 'opencode',
+      modelId: 'xai/grok-4.6',
+      providerLabel: 'OpenCode',
+      sourceProvider: 'xai',
+      ...grok,
+      canonicalDisplayName: 'grok-4.6'
+    }),
+    makeModel({
+      provider: 'pi',
+      modelId: 'openrouter/x-ai/grok-4.6',
+      providerLabel: 'Pi',
+      sourceProvider: 'openrouter',
+      ...grok,
+      canonicalDisplayName: 'x-ai/grok-4.6'
+    }),
+    makeModel({ provider: 'grok', modelId: 'grok-4.6', providerLabel: 'Grok', ...grok })
+  ])
+
+  assert.equal(models.length, 1)
+  assert.equal(models[0].displayName, 'Grok 4.6', 'named after the native Grok route')
+})

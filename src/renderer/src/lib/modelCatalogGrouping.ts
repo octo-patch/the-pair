@@ -85,8 +85,29 @@ function canonicalKeyOf(model: AvailableModel): string {
   return `${model.provider}::${base}`
 }
 
+// The source provider is part of the route: one Pi or OpenCode install can reach the
+// same model through several gateways (Anthropic, GitHub Copilot, OpenRouter), and each
+// is a separate way to run it, not an effort variant of one route.
 function routeKeyOf(model: AvailableModel): string {
-  return `${model.provider}::${model.planLabel ?? model.providerLabel}`
+  const plan = model.planLabel ?? model.providerLabel
+  return model.sourceProvider
+    ? `${model.provider}::${plan}::${model.sourceProvider}`
+    : `${model.provider}::${plan}`
+}
+
+function providerRank(provider: ProviderKind): number {
+  return PROVIDER_PRIORITY[provider] ?? UNRANKED_PROVIDER_ORDER
+}
+
+// Gateways list models under a raw slug ("grok-4.6"), so for naming they rank after
+// every native CLI, whose own catalog carries the vendor's label ("Grok 4.6").
+const GATEWAY_PROVIDERS: ReadonlySet<ProviderKind> = new Set<ProviderKind>(['opencode', 'pi'])
+
+function compareForNaming(a: AvailableModel, b: AvailableModel): number {
+  const ga = GATEWAY_PROVIDERS.has(a.provider)
+  const gb = GATEWAY_PROVIDERS.has(b.provider)
+  if (ga !== gb) return ga ? 1 : -1
+  return providerRank(a.provider) - providerRank(b.provider)
 }
 
 function displayNameOf(model: AvailableModel): string {
@@ -162,16 +183,16 @@ export function buildCanonicalModels(models: AvailableModel[]): CanonicalModel[]
     )
     routes.sort((a, b) => {
       if (a.available !== b.available) return a.available ? -1 : 1
-      const pa = PROVIDER_PRIORITY[a.provider] ?? UNRANKED_PROVIDER_ORDER
-      const pb = PROVIDER_PRIORITY[b.provider] ?? UNRANKED_PROVIDER_ORDER
+      const pa = providerRank(a.provider)
+      const pb = providerRank(b.provider)
       if (pa !== pb) return pa - pb
       return a.providerLabel.localeCompare(b.providerLabel)
     })
 
-    const preferredRow =
-      rows.find((row) => row.provider !== 'opencode' && isSelectableForPairExecution(row)) ??
-      rows.find((row) => isSelectableForPairExecution(row)) ??
-      rows[0]
+    // Name the model after a native CLI's row before any gateway's, so the vendor's
+    // label ("Claude Sonnet 4.5") wins over a gateway slug whatever order rows arrive in.
+    const ranked = [...rows].sort(compareForNaming)
+    const preferredRow = ranked.find((row) => isSelectableForPairExecution(row)) ?? ranked[0]
 
     result.push({
       canonicalKey,
