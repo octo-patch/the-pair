@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.0] - 2026-10-20
+
+Bottom-pinned composer and a UI consistency pass. The task input now lives at the bottom of the pair console like a chat, the model picker shows one row per model no matter how many CLIs or gateways can run it, and the hub, console, inspector and dialogs share one set of primitives and recipes.
+
+### Added
+
+- **Bottom-pinned task input.** The task input and plan-review bar are docked at the bottom of the pair console, and the transcript re-pins to the latest message on resize unless you have scrolled up to read. Archived runs keep their return-to-review button in the dock.
+- **Shared UI primitives.** New `IconButton` and `Chip` primitives plus shared recipes for inputs, labels, kbd hints, popovers, menu rows, callouts, group headers and z-layers. `GlassButton` gains an `xs` size and keeps its explanatory tooltip when disabled.
+
+### Changed
+
+- **Hub, palette and dialogs unified.** Pair cards no longer nest buttons — their actions are keyboard-reachable icon buttons revealed on hover or focus. The update notification and confirm dialog sit on `GlassModal` (focus trap, Cancel-then-confirm footer), the command palette gets a dim backdrop, and the language menu closes on Escape.
+- **Forms and pickers.** Model, branch and skill pickers share one popover surface, row style, group headers and loading/empty states with listbox semantics; form labels are bound to their inputs.
+- **Console polish.** One Retry button when a pair errors, a shared back-to-live control for console and task history, a neutral idle composer prompt (amber is reserved for running), role-colored running spinner, verdict-colored acceptance tags, and no text below 10px. Previously hard-coded English in the token tooltip, timeline actions and diff loading is now translated (en, zh, ja, ko).
+
+### Fixed
+
+- **One model, one picker row.** Models are keyed on the vendor read from the slug, so e.g. Claude Sonnet 4.5 offered by Claude Code, Kiro, Pi, Aider and OpenCode gateways is a single row instead of several differently named ones. The row takes its name from a native CLI before any gateway ("Grok 4.6", not `grok-4.6`), bare slugs are prettified, two gateways of one CLI stay separate routes, and Pi routes are labelled by provider.
+- **@file and /skill popovers.** They flip upward when there is no room below (measured by rendered height, not the max-height cap), keep the keyboard-selected row in view, and open only on an `@` that starts a token — an email address no longer opens an empty "no files match" box, and loading or failed listings show their own hint.
+- **Missing tints and outlines.** State, role and surface colors were never registered in the Tailwind theme, so tinted warning/error banners rendered untinted and the active search match had no outline. Card surfaces moved into `@layer components` so utility classes can override them.
+- **Focus and tooltips.** The primary button's focus ring is visible again (it had been drawn in its own fill color), and a pair card's spec tooltip is reachable again.
+
 ## [2.12.1] - 2026-10-19
 
 Provider interface audit patch: all ten agent CLIs re-checked against their latest releases (opencode 2.0.32, codex-cli 0.163.0, claude 2.1.302, agy 1.4.2, kimi 2.2.0, pi 1.3.0, grok 1.0.62, kiro-cli 2.32.0, aider 0.86.2, Muse 1.4.10). No flag renames or event-schema breaks — every breaking-drift candidate was verified against the installed CLI or its bundled docs; the fixes below close silent-degradation paths the audit found.
