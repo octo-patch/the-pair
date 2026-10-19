@@ -47,3 +47,37 @@ export function shouldAcceptSkillOnEnter(
 function looksLikePath(query: string): boolean {
   return /[/\\~]/.test(query) || query.startsWith('.')
 }
+
+/** Viewport rect of the caret line a mention popover anchors beside. */
+export interface CaretLineRect {
+  top: number
+  bottom: number
+  left: number
+}
+
+/** Fixed-position offsets for a mention popover: `top` opens below, `bottom` above. */
+export type MentionPopupPosition = { top: number; left: number } | { bottom: number; left: number }
+
+/** Overlap (px) between the popover edge and the caret line it sits beside. */
+const POPUP_LINE_OVERLAP_PX = 4
+
+/**
+ * Opens the popover below the caret line when it fits, otherwise above — the
+ * console input is docked at the bottom of the window, where a downward
+ * popover would spill off-screen. When neither side fits, the roomier wins.
+ * `popupHeight` is the rendered height, not the `max-h-*` cap: a short list
+ * fits below a caret that a full-height list would not.
+ */
+export function placeMentionPopup(
+  caret: CaretLineRect,
+  viewportHeight: number,
+  popupHeight: number
+): MentionPopupPosition {
+  const top = caret.top - POPUP_LINE_OVERLAP_PX
+  const spaceBelow = viewportHeight - top
+  const spaceAbove = caret.bottom + POPUP_LINE_OVERLAP_PX
+  if (spaceBelow >= popupHeight || spaceBelow >= spaceAbove) {
+    return { top, left: caret.left }
+  }
+  return { bottom: viewportHeight - spaceAbove, left: caret.left }
+}

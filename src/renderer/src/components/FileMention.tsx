@@ -1,9 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Fuse from 'fuse.js'
 import { File, Folder } from 'lucide-react'
 import { createCompositionTracker, isImeKeyEvent } from './keyboard'
-import { replaceFileMentionToken } from './mentionText'
+import {
+  placeMentionPopup,
+  replaceFileMentionToken,
+  type CaretLineRect,
+  type MentionPopupPosition
+} from './mentionText'
 
 interface FileEntry {
   path: string
@@ -29,7 +34,8 @@ export function FileMention({
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<FileEntry[]>([])
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const [position, setPosition] = useState({ top: 0, left: 0 })
+  const [caret, setCaret] = useState<CaretLineRect | null>(null)
+  const [position, setPosition] = useState<MentionPopupPosition>({ top: 0, left: 0 })
   const [files, setFiles] = useState<FileEntry[]>([])
   const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -73,7 +79,7 @@ export function FileMention({
     )
   }, [files])
 
-  const getCursorPosition = useCallback((): { top: number; left: number } | null => {
+  const getCaretRect = useCallback((): CaretLineRect | null => {
     const textarea = textareaRef.current
     if (!textarea) return null
 
@@ -109,10 +115,7 @@ export function FileMention({
     const spanRect = span.getBoundingClientRect()
     document.body.removeChild(mirror)
 
-    return {
-      top: spanRect.top - 4,
-      left: spanRect.right + 8
-    }
+    return { top: spanRect.top, bottom: spanRect.bottom, left: spanRect.right + 8 }
   }, [textareaRef])
 
   const insertMention = useCallback(
@@ -176,7 +179,7 @@ export function FileMention({
       }
 
       setQuery(textAfterAt)
-      setPosition(getCursorPosition() ?? { top: 0, left: 0 })
+      setCaret(getCaretRect())
       setIsOpen(true)
       isOpenRef.current = true
       setSelectedIndex(0)
@@ -257,10 +260,10 @@ export function FileMention({
 
     function handleScroll(): void {
       if (isOpenRef.current) {
-        setPosition(getCursorPosition() ?? { top: 0, left: 0 })
+        setCaret(getCaretRect())
       }
     }
-  }, [textareaRef, getCursorPosition, insertMention])
+  }, [textareaRef, getCaretRect, insertMention])
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -286,6 +289,14 @@ export function FileMention({
     }
   }, [query, fuse])
 
+  // The popover is content-sized, so pick its side from the rendered height
+  // (before paint) rather than the `max-h-64` cap.
+  useLayoutEffect(() => {
+    const popover = popoverRef.current
+    if (!isOpen || !caret || !popover) return
+    setPosition(placeMentionPopup(caret, window.innerHeight, popover.offsetHeight))
+  }, [isOpen, caret, results])
+
   if (!isOpen || results.length === 0) return null
 
   // mousedown is prevented on the popover so focus stays in the textarea: its
@@ -294,7 +305,7 @@ export function FileMention({
     <div
       ref={popoverRef}
       className="fixed z-[9999] max-h-64 w-80 overflow-y-auto rounded-sm border border-border bg-popover font-mono scrollbar-thin"
-      style={{ top: position.top, left: position.left }}
+      style={position}
       onMouseDown={(e) => e.preventDefault()}
     >
       {results.map((file, index) => (
