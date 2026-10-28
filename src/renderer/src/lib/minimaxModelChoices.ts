@@ -50,9 +50,19 @@ export function preferMiniMaxFlash<T>(models: T[], modelId: (model: T) => string
 }
 
 export function ordinaryModelChoices(models: AvailableModel[]): AvailableModel[] {
-  return preferMiniMaxFlash(models, (model) =>
+  const ordered = preferMiniMaxFlash(models, (model) =>
     model.planLabel === 'custom-provider' || !['opencode', 'pi'].includes(model.provider)
       ? ''
       : model.modelId
-  ).filter(isOrdinaryModelChoice)
+  )
+  const hasCurrentTextChoice = models.some((model) => {
+    if (model.planLabel === 'custom-provider' || !['opencode', 'pi'].includes(model.provider))
+      return false
+    const id = textModelId(model.modelId)
+    return (
+      id !== undefined &&
+      (/^minimax-m3(?::[a-z]+)?$/.test(id) || /^minimax-m3\.1-flash(?:-free|:free)?$/.test(id))
+    )
+  })
+  return hasCurrentTextChoice ? ordered.filter(isOrdinaryModelChoice) : ordered
 }

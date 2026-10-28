@@ -41,7 +41,7 @@ test('ordinary MiniMax choices are Flash first, then M3, without mutating discov
   assert.equal(input.length, 4)
 })
 
-test('gateway IDs are preserved verbatim and no model is invented when Flash is absent', () => {
+test('gateway IDs are preserved and legacy choices remain until a current model is discovered', () => {
   const routes = [
     model('opencode/minimax-m3'),
     model('opencode/minimax-m2.5-free'),
@@ -51,7 +51,7 @@ test('gateway IDs are preserved verbatim and no model is invented when Flash is 
   ]
   assert.deepEqual(ordinaryModelChoices(routes), [routes[2], routes[3], routes[0], routes[4]])
   assert.deepEqual(ordinaryModelChoices([legacy, m3]), [m3])
-  assert.deepEqual(ordinaryModelChoices([legacy]), [])
+  assert.deepEqual(ordinaryModelChoices([legacy]), [legacy])
 })
 
 test('non-MiniMax positions, media, custom providers and aliases survive filtering', () => {
@@ -100,7 +100,7 @@ test('new defaults prefer Flash, saved legacy/custom choices win, and unrelated 
   try {
     assert.equal(getPreferredQualifiedModel('mentor', [legacy, m3, flash]), flash.modelId)
     assert.equal(getPreferredQualifiedModel('executor', [legacy, m3]), m3.modelId)
-    assert.equal(getPreferredQualifiedModel('executor', [legacy]), '')
+    assert.equal(getPreferredQualifiedModel('executor', [legacy]), legacy.modelId)
     const other = model('example/other-model')
     assert.equal(getPreferredQualifiedModel('mentor', [other, legacy, m3, flash]), other.modelId)
     assert.equal(getPreferredQualifiedModel('mentor', [legacy, other, m3, flash]), flash.modelId)
